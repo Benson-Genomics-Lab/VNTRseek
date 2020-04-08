@@ -14,7 +14,7 @@ if ( $ENV{DEBUG} ) {
 
 use base 'Exporter';
 our @EXPORT_OK
-    = qw(read_config_file get_config set_config set_credentials get_dbh get_ref_dbh make_refseq_db load_refprofiles_db run_redund write_sqlite set_statistics get_statistics set_datetime print_config trim create_blank_file get_trunc_query sqlite_install_RC_function gen_exec_array_cb vs_db_insert);
+    = qw(trim read_config_file get_config set_config set_credentials get_dbh get_ref_dbh make_refseq_db load_refprofiles_db run_redund write_sqlite set_statistics get_statistics set_datetime print_config trim create_blank_file get_trunc_query sqlite_install_RC_function gen_exec_array_cb vs_db_insert);
 
 # vutil.pm
 # author: Yevgeniy Gelfand, Yozen Hernandez
@@ -122,18 +122,18 @@ my %valid_stats = (
 );
 
 ################################################################
+=item C<trim>
+
+Takes an input string and removes the whitespace from the start
+and end of a string.
+
+=cut
+
 sub trim {
     my $string = shift;
     $string =~ s/^\s+//;
     $string =~ s/\s+$//;
     return $string;
-}
-
-sub create_blank_file {
-    my $filename = shift or croak("Error: filename is a required argument\n");
-    open my $blank_file, ">", $filename
-        or croak("Error creating blank file $filename: $!");
-    close $blank_file or croak("Error closing blank file $filename: $!");
 }
 
 ################################################################

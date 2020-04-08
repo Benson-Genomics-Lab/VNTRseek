@@ -18,7 +18,6 @@ use Try::Tiny;
 
 use vutil
     qw(get_config get_dbh set_statistics get_trunc_query gen_exec_array_cb vs_db_insert);
-use Data::Dumper;
 
 my $RECORDS_PER_INFILE_INSERT = 100000;
 
@@ -84,7 +83,7 @@ while (<$cluster_fh>) {
         my $dir = '\'';
         if ( $val =~ /\"/ ) { $dir = '"'; }
         $val =~ s/[\'\"]//g;
-        $val = trim($val);
+        $val = trimhead($val);
 
         if ( $val > 0 ) {
             $RHASH{"$val"} = $dir;
@@ -188,7 +187,7 @@ foreach my $ifile (@indexfiles) {
                 $pattern = $7;
                 $i++;
 
-                $head = trim($head);
+                $head = trimhead($head);
 
                 unless ( exists $HEADHASH{"$head"} ) {
 
@@ -311,7 +310,7 @@ for my $read_file (@readfiles) {
             # Jump out of while loop
             last;
         }
-        $headstr = trim($headstr);
+        $headstr = trimhead($headstr);
         $dnastr  = trimall($dnastr);
 
         # warn "head: $headstr\tdna: $dnastr\n";
@@ -411,18 +410,16 @@ sub read_file_line {
     return;
 }
 
-# Perl function to remove whitespace from the start and end of the string
-sub trim {
+# Remove leading ">" if any and call trim from vutil
+sub trimhead {
     my $string = shift;
 
     # Remove leading ">", if any
     $string =~ s/^>//;
-    $string =~ s/^\s+//;
-    $string =~ s/\s+$//;
-    return $string;
+    return trim($string);
 }
 
-# Perl function to remove all whitespace
+# Remove all whitespace in string
 sub trimall {
     my $string = shift;
     $string =~ s/\s+//g;

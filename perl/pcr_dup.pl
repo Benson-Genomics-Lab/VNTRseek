@@ -17,13 +17,6 @@ use vutil
 
 my $RECORDS_PER_INFILE_INSERT = 100000;
 
-# Perl trim function to remove whitespace from the start and end of the string
-sub trim($) {
-    my $string = shift;
-    $string =~ s/^\s+//;
-    $string =~ s/\s+$//;
-    return $string;
-}
 warn strftime( "\n\nstart: %F %T\n\n", localtime );
 
 my $argc = @ARGV;

@@ -21,17 +21,9 @@ use FindBin;
 use File::Basename;
 
 use lib "$FindBin::RealBin/lib";
-use vutil qw(get_config get_dbh set_statistics get_trunc_query);
+use vutil qw(trim get_config get_dbh set_statistics get_trunc_query);
 
 my $strip454 = "0";
-
-# Perl function to remove whitespace from the start and end of the string
-sub trim($) {
-    my $string = shift;
-    $string =~ s/^\s+//;
-    $string =~ s/\s+$//;
-    return $string;
-}
 
 # Perl function to remove all whitespace
 sub trimall($) {

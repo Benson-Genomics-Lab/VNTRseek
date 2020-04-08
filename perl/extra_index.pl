@@ -11,17 +11,9 @@ use File::Basename;
 
 use FindBin;
 use lib "$FindBin::RealBin/lib";
-use vutil qw(get_config get_dbh set_statistics get_trunc_query);
+use vutil qw(trim get_config get_dbh set_statistics get_trunc_query);
 
 my $FASTA = 1;
-
-# Perl trim function to remove whitespace from the start and end of the string
-sub trim($) {
-    my $string = shift;
-    $string =~ s/^\s+//;
-    $string =~ s/\s+$//;
-    return $string;
-}
 
 warn strftime( "\n\nstart: %F %T\n\n", localtime );
 
@@ -37,7 +29,7 @@ my $run_dir  = $ARGV[2];
 
 # set these mysql credentials in vs.cnf (in installation directory)
 my %run_conf = get_config( $DBSUFFIX, $run_dir );
-my $dbh = get_dbh()
+my $dbh      = get_dbh()
     or die "Could not connect to database: $DBI::errstr";
 
 # create folder
