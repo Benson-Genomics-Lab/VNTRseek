@@ -82,6 +82,7 @@ my $HELPSTRING
     . "\t--DBSUFFIX                    suffix for database name (this is the name of your analysis)\n"
     . "\t--NAME                        synonym for DBSUFFIX\n"
     . "\t--NPROCESSES                  number of processors on your system\n"
+    . "\t--READ_LENGTH                 length of fasta reads\n"
     . "\t--MIN_FLANK_REQUIRED          minimum required flank on both sides for a read TR to be considered (default 10)\n"
     . "\t--MAX_FLANK_CONSIDERED        maximum flank length used in flank alignments, set to big number to use full flank (default 50)\n"
     . "\t--MIN_SUPPORT_REQUIRED        minimum number of mapped reads which agree on copy number to call an allele (default 2)\n"
@@ -120,7 +121,8 @@ GetOptions(
     "REDO_REFDB",             "INPUT_DIR|FASTA_DIR=s",
     "OUTPUT_ROOT=s",          "TMPDIR=s",
     "REFERENCE=s",            "REFERENCE_INDIST_PRODUCE=i",
-    "CLEAN",                  "STATS"
+    "CLEAN",                  "STATS",
+    "READ_LENGTH=i"
 );
 
 # print help if asked
@@ -1425,6 +1427,15 @@ if ( $STEP == 19 ) {
 
     set_statistics( { TIME_REPORTS => time() - $timestart } );
     set_datetime("DATE_REPORTS");
+
+    # Create reduced database
+    my $opb = "$opts{OUTPUT_ROOT}/vntr_$opts{DBSUFFIX}";
+    my $dbfile = "$opb/$opts{DBSUFFIX}.db";
+    my $dbfile2 = "$opb/$opts{DBSUFFIX}_rl$opts{READ_LENGTH}.db";
+    print STDOUT "Finalizing:\n$dbfile\nbeing reduced into\n$dbfile2\n";
+    system("nice --20 sqlite3 $dbfile < reduced_db.sql > $opb/finalization.out 2>&1");
+    system("mv temp_reduced.db $dbfile2");
+    
     print STDERR "done!\n";
 }
 
