@@ -19,7 +19,7 @@ space for output.
 ##Software
 
 ### Build requirements
-Installation requires cmake (http://www.cmake.org/), minimum version 2.8
+Installation requires cmake (http://www.cmake.org/), minimum version 3.0
 
 Additionally you will need GCC version 4.1.2 on Mac/Linux/CYGWIN or
 a compatible compiler (only clang has been tested).
