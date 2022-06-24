@@ -20,6 +20,11 @@ if ((scalar @ARGV) < 8) {
 }
 
 # arguments and preset "static" variables
+
+my $curdir = getcwd();
+my $PROCLU_PARAM = "$curdir/eucledian.dst 70 0 0";
+my $files_to_process = 1000;
+
 my $inputfile    = $ARGV[0];
 my $folder       = $ARGV[1];
 my $DBSUFFIX     = $ARGV[2];
@@ -29,12 +34,8 @@ my $cpucount     = $ARGV[5];
 my $PROCLU       = "$curdir/$ARGV[6]";
 my $tmp          = $ARGV[7];
 
-my $files_to_process = 1000;
-my $curdir = getcwd;
-my $PROCLU_PARAM = "$curdir/eucledian.dst 70 0 0";
 
-
-# load config and  prep SQL driver
+# load config and prep SQL driver
 my %run_conf = get_config($DBSUFFIX, $run_dir);
 my $dbh = get_dbh()
     or die "Could not connect to database: $DBI::errstr";
