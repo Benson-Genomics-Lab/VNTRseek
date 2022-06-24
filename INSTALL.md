@@ -1,22 +1,25 @@
-#Important Notes
+# Important Notes
 
 - Up-to-date installation documentation can be found on the project's
 [GitHub wiki](https://github.com/yzhernand/VNTRseek/wiki)
 - Only CentOS 6 and Ubuntu 12.10 and up have been tested.
 - Only a Linux 64-bit version of our software is available at this time.
-- Currently, the default install path is valid only on UNIX-like
-platforms.
+- Currently, the default install path is valid only on UNIX-like platforms.
 
-#Requirements
+# Requirements
 
+Latest versions preferred.
 
-##Hardware
+- samtools
+- bedtools
+
+## Hardware
 
 You will need a fast computer with plenty of RAM and disk space. This pipeline
 is very CPU and IO intensive, and will require plenty of system memory and
 space for output.
 
-##Software
+## Software
 
 ### Build requirements
 Installation requires cmake (http://www.cmake.org/), minimum version 3.0
@@ -27,12 +30,10 @@ a compatible compiler (only clang has been tested).
 ### Runtime requirements
 The following programs are required for the pipeline to run:
 
-- MySQL client (5.0.95)
-- Perl (5.8.8)
+- SQLite (>= 3.0.0)
+- Perl (>= 5.14.0)
 
-A MySQL server is required, but can be hosted on a remote machine.
-
-The Perl `DBI` and `DBD::mysql` modules are required for interacting
+The Perl `DBI` and `DBD::SQLite` modules are required for interacting
 with a MySQL server.
 
 TRF is also required, but is downloaded during installation. If for some
@@ -79,7 +80,7 @@ To build and install to the default directory, simply run the following commands
     cd vntrseekN.NNsrc
 	mkdir build
 	cd build
-	cmake ..     # may be cmake28 on some systems
+	cmake ..
 	make install # or sudo make install, if needed
 
 By default, this will install the pipeline to `/usr/local/vntrseekN.NN` (eg,
@@ -105,12 +106,6 @@ permission to write to the installation directory.
 If you installed to a non-standard location, you may need to add
 `/path/to/prefix/bin` to your `PATH` variable (eg, if your prefix
 was `/opt`, you will need to have `/opt/bin` in your `PATH`).
-
-**IMPORTANT:** for correct execution, please add these lines to the
-`[mysqld]` section of the `my.cnf` file and restart mysql process:
-
-    innodb_buffer_pool_size=1G
-    innodb_additional_mem_pool_size=20M
 
 # Uninstalling
 

@@ -16,7 +16,7 @@ INSTALL(DIRECTORY lib/
     )
 
 # Modify vntrseek.pl
-configure_file(vntrseek.pl.in vntrseek.pl @ONLY)
+configure_file(vntrseek.pl vntrseek.pl @ONLY)
 # Install vntrseek.pl
 install(PROGRAMS ${CMAKE_CURRENT_BINARY_DIR}/vntrseek.pl DESTINATION ${InstallSuffix})
 
