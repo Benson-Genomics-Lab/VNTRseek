@@ -138,94 +138,45 @@ sub trim {
 
 ################################################################
 sub read_config_file {
+    croak "read_config_file() expects 1 parameter.\n"
+        unless (@_);
 
-    # Get file location
-    unless (@_) { die "read_config_file: expects 1 parameters.\n"; }
     my $file_loc = shift;
+    open(my $cnf, "<", "$file_loc") or die "$!";
 
-    ( $ENV{DEBUG} ) && warn "Reading configuration file: $file_loc\n";
-
-    # read global config
-    my $cnf;
-    try {
-        open( $cnf, "<", "$file_loc" )
-            or die "$!";
-    }
-    catch {
-        ( $ENV{DEBUG} ) && warn "$_\n";
-        $VSCNF_FILE{ERR} = $_;
-        return 0;
-    };
-
+    # read config
     while (<$cnf>) {
         chomp;
-
-        # skip start comments
-        if (/^\#/) { next; }
+        if (/^\#/) { next;} # skip comments
 
         if (/(.+)=(.*)/) {
             my $key = trim($1);
             my $val = trim($2);
             $val =~ s/\s*\#.*//;    # strip end comments
             $VSCNF_FILE{ uc($key) } = $val;
-
-            #print $key."=".$val."\n";
         }
     }
-
     close($cnf);
     return 1;
-
 }
 
 ################################################################
 sub get_config {
-    croak "Error: function expects 2 parameters\n"
+    croak "get_config() expects 2 parameters\n"
         unless ( @_ == 2 );
 
     my ( $dbsuffix, $config_loc ) = @_;
     my $installdir  = "$FindBin::RealBin";
     my $config_file = "$config_loc/$dbsuffix.vs.cnf";
-    $VSCNF_FILE{ERR} = "";
 
     # $VSCNF_FILE{NEW_RUN} = 0;
-    unless ($VSREAD) {
-        $VSCNF_FILE{ERR} = "";
+    if (!$VSREAD) { # why? how is this accessed that this is a concern?
+        # Read defaults file first.
+        read_config_file("$installdir/defaults.vs.cnf");
 
-        # Must read global file first. Sets up the defaults.
-        read_config_file("$installdir/vs.cnf");
-        if ( $VSCNF_FILE{ERR} =~ /Permission denied/ ) {
-            die "Could not read global config. Please make sure "
-                . "your user or group has read permissions.\n";
+        if (-e $config_file) { # this should not be mandatory
+            read_config_file($config_file);
         }
-        elsif ( $VSCNF_FILE{ERR} =~ /No such file or directory/ ) {
-            die "Global config does not exist! Either reinstall "
-                . "VNTRseek or copy the default configuration from "
-                . "source distribution and modify as needed.\n";
-        }
-        elsif ( $VSCNF_FILE{ERR} ) {
-            die "Unexpected error reading global configuration file: "
-                . $VSCNF_FILE{ERR} . "\n";
-        }
-
-        $VSCNF_FILE{ERR} = "";
-        read_config_file($config_file);
-        if ( $VSCNF_FILE{ERR} =~ /No such file or directory/ ) {
-            warn "Run config does not exist. "
-                . "A new one will be created, but make sure your "
-                . "run name (dbsuffix) is correct!\n";
-
-            # $VSCNF_FILE{NEW_RUN} = 1;
-        }
-        elsif ( $VSCNF_FILE{ERR} =~ /Permission denied/ ) {
-            die "Could not read run config. Please make sure "
-                . "your user or group has read AND write permissions.\n";
-        }
-        elsif ( $VSCNF_FILE{ERR} ) {
-            die "Unexpected error reading run configuration file: "
-                . $VSCNF_FILE{ERR} . "\n";
-        }
-        delete $VSCNF_FILE{ERR};
 
         # Set VSREAD;
         $VSREAD               = 1;
@@ -239,11 +190,6 @@ sub get_config {
 ################################################################
 sub set_config {
     my %in_hash = @_;
-
-    if ( $ENV{DEBUG} ) {
-        use Data::Dumper;
-        warn Dumper( \%in_hash );
-    }
 
     # Validation
     unless ( $in_hash{SERVER} ) {
@@ -303,14 +249,6 @@ sub set_config {
         );
     }
 
-    if ( !defined $in_hash{HTML_DIR} || ( "" eq $in_hash{HTML_DIR} ) ) {
-
-        # warn "Warning: 'html_dir' option is unset.\n";
-    }
-    elsif ( !( -e $in_hash{HTML_DIR} ) && !mkdir("$in_hash{HTML_DIR}") ) {
-        croak("Could not create html_dir directory ($in_hash{HTML_DIR}).\n");
-    }
-
     # For older runs where FASTA_DIR was the name of the option
     if ( exists $in_hash{FASTA_DIR} && $in_hash{FASTA_DIR} ) {
         $in_hash{INPUT_DIR} = $in_hash{FASTA_DIR};
@@ -365,34 +303,17 @@ sub set_config {
     unless ( -e $in_hash{INPUT_DIR} ) {
         die("Error: input directory '$in_hash{INPUT_DIR}' not found!");
     }
-    if ( !-e $in_hash{OUTPUT_ROOT} && !mkdir( $in_hash{OUTPUT_ROOT} ) ) {
-        die("Error creating output root ($in_hash{OUTPUT_ROOT}). Please check the path or manually create this directory and try again."
+    if ( !-e $in_hash{OUTPUT_ROOT} and !mkdir( $in_hash{OUTPUT_ROOT} ) or !-x _ or !-w _ ) {
+        die("Error accessing output root ($in_hash{OUTPUT_ROOT})."
+            . " Please check the path.\nYou may need to create it manually"
+            . " or obtain the permissions (read, write, execute)."
         );
     }
-    unless ( -e $in_hash{OUTPUT_ROOT} ) {
-        die("Directory '$in_hash{OUTPUT_ROOT}' not found!");
-    }
-    unless ( -e $in_hash{TMPDIR} ) {
-        die("Temporary directory '$in_hash{TMPDIR}' not found!");
-    }
-    if ( $in_hash{HTML_DIR} && !( -x $in_hash{HTML_DIR} ) ) {
-        die("Directory '$in_hash{HTML_DIR}' not executable!");
-    }
-    unless ( -x $in_hash{OUTPUT_ROOT} ) {
-        die("Directory '$in_hash{OUTPUT_ROOT}' not executable!");
-    }
-    unless ( -x $in_hash{TMPDIR} ) {
-        die("Directory '$in_hash{TMPDIR}' not executable!");
-    }
-
-    if ( $in_hash{HTML_DIR} && !( -w $in_hash{HTML_DIR} ) ) {
-        die("Directory '$in_hash{HTML_DIR}' not writable!");
-    }
-    unless ( -w $in_hash{OUTPUT_ROOT} ) {
-        die("Directory '$in_hash{OUTPUT_ROOT}' not writable!");
-    }
-    unless ( -w $in_hash{TMPDIR} ) {
-        die("Directory '$in_hash{TMPDIR}' not writable!");
+    unless ( !-e $in_hash{TMPDIR} and !mkdir( $in_hash{TMPDIR} ) or !-x _ or !-w _ ) {
+        die("Error accessing temp directory ($in_hash{TMPDIR})."
+            . " Please check the path.\nYou may need to create it manually"
+            . " or obtain the permissions (read, write, execute)."
+        );
     }
 
     # DELETEME While testing, this option is always sqlite.
@@ -520,7 +441,7 @@ sub _init_ref_dbh {
 
     if ( $opts->{redo} && $VSREAD ) {
         $VSCNF_FILE{REDO_REFDB} = 0;
-        print_config( $VSCNF_FILE{CONF_DIR} );
+        # print_config( $VSCNF_FILE{CONF_DIR} ); no, no we don't rewrite the user created config, ever.
     }
 
     # END TODO
@@ -1373,14 +1294,19 @@ sub vs_db_insert {
 ################################################################
 
 sub print_config {
-
     my $argc = @_;
-    if ( $argc < 1 ) {
-        croak "print_config: expects 1 parameters, passed $argc!\n";
-    }
+    croak "print_config expects 1 parameters, passed $argc!\n"
+        unless $argc == 1;
 
     my $startdir = $_[0];
 
+    $VSCNF_FILE{"INPUT_DIR"} = "" unless defined $VSCNF_FILE{"INPUT_DIR"};
+    $VSCNF_FILE{"OUTPUT_ROOT"} = "" unless defined $VSCNF_FILE{"OUTPUT_ROOT"};
+
+    if ( !defined $VSCNF_FILE{"TMPDIR"} ) { $VSCNF_FILE{"TMPDIR"} = ""; }
+    if ( !defined $VSCNF_FILE{"REFERENCE_FILE"} ) {
+        $VSCNF_FILE{"REFERENCE_FILE"} = "";
+    }
     if ( !defined $VSCNF_FILE{"NPROCESSES"} ) {
         $VSCNF_FILE{"NPROCESSES"} = -1;
     }
@@ -1402,16 +1328,7 @@ sub print_config {
         $VSCNF_FILE{"IS_PAIRED_READS"} = -1;
     }
     if ( !defined $VSCNF_FILE{"HTML_DIR"} ) { $VSCNF_FILE{"HTML_DIR"} = ""; }
-    if ( !defined $VSCNF_FILE{"INPUT_DIR"} ) {
-        $VSCNF_FILE{"INPUT_DIR"} = "";
-    }
-    if ( !defined $VSCNF_FILE{"OUTPUT_ROOT"} ) {
-        $VSCNF_FILE{"OUTPUT_ROOT"} = "";
-    }
-    if ( !defined $VSCNF_FILE{"TMPDIR"} ) { $VSCNF_FILE{"TMPDIR"} = ""; }
-    if ( !defined $VSCNF_FILE{"REFERENCE_FILE"} ) {
-        $VSCNF_FILE{"REFERENCE_FILE"} = "";
-    }
+    
     if ( !defined $VSCNF_FILE{"REFERENCE_SEQ"} ) {
         $VSCNF_FILE{"REFERENCE_SEQ"} = "";
     }

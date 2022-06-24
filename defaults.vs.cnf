@@ -59,11 +59,11 @@ INPUT_DIR=
 
 # output directory (must be writable and executable!)
 # eg, /output
-OUTPUT_ROOT=
+OUTPUT_ROOT=output
 
 # temp (scratch) directory (must be executable!)
 # eg, /tmp
-TMPDIR=/tmp
+TMPDIR=output
 
 # names for the reference files 
 

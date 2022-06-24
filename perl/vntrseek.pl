@@ -80,7 +80,6 @@ my $HELPSTRING
     . "\n\nOPTIONS:\n\n"
     . "\t--HELP                        prints this help message\n"
     . "\t--DBSUFFIX                    suffix for database name (this is the name of your analysis)\n"
-    . "\t--NAME                        synonym for DBSUFFIX\n"
     . "\t--NPROCESSES                  number of processors on your system\n"
     . "\t--READ_LENGTH                 length of fasta reads\n"
     . "\t--MIN_FLANK_REQUIRED          minimum required flank on both sides for a read TR to be considered (default 10)\n"
@@ -95,7 +94,6 @@ my $HELPSTRING
     . "\t--CLEAN                       force reinitialization of the run database. Command line option only.\n"
     . "\t--HTML_DIR                    html directory (optional, must be writable and executable!)\n"
     . "\t--INPUT_DIR                   input data directory (BAM or plain or gzipped fasta/fastq files)\n"
-    . "\t--FASTA_DIR                   same as INPUT_DIR, kept for backwards compatibility\n"
     . "\t--OUTPUT_ROOT                 output directory (must be writable and executable!)\n"
     . "\t--TMPDIR                      temp (scratch) directory (must be writable!)\n"
     . "\t--REFERENCE                   base name of reference files (default set in global config file)\n"
@@ -106,19 +104,17 @@ my $HELPSTRING
     . "\t$0 --REFERENCE </path/to/reference/basename> [--REDO_REFDB] to initialize a reference set.\n"
     . "This only needs to be done once for a reference set. Supply --REDO_REFDB to force a recreation of the database.\n\n";
 
-# get dbsuffix from command line
 my %opts = ();
 
-# print Dumper(@ARGV);
-# modify config variables based on command line
+# set options based on command line
 GetOptions(
     \%opts,                   "HELP",
     "NPROCESSES=i",           "MIN_FLANK_REQUIRED=i",
     "MAX_FLANK_CONSIDERED=i", "MIN_SUPPORT_REQUIRED=i",
-    "KEEPPCRDUPS=i",          "DBSUFFIX|NAME=s",
+    "KEEPPCRDUPS=i",          "DBSUFFIX=s",
     "SERVER=s",               "STRIP_454_KEYTAGS=i",
     "IS_PAIRED_READS=i",      "PLOIDY=i",
-    "REDO_REFDB",             "INPUT_DIR|FASTA_DIR=s",
+    "REDO_REFDB",             "INPUT_DIR=s",
     "OUTPUT_ROOT=s",          "TMPDIR=s",
     "REFERENCE=s",            "REFERENCE_INDIST_PRODUCE=i",
     "CLEAN",                  "STATS",
@@ -141,15 +137,12 @@ if ( !exists $opts{"DBSUFFIX"} ) {
         exit;
     }
 
-    die("Please set run name (--name) variable using command line.\n");
+    die("Please set run name (--DBSUFFIX) variable using command line.\n");
 }
 
-# where config file will go
+# locating local config
 # Convert any input for DBSUFFIX to lower case.
 $opts{"DBSUFFIX"} = lc( $opts{"DBSUFFIX"} );
-
-# This path needs to be able to pick any case difference, for backwards compatibility
-# my $MSDIR       = $ENV{HOME} . "/" . $opts{'DBSUFFIX'} . ".";
 my $config_file = "$run_dir/" . $opts{'DBSUFFIX'} . ".vs.cnf";
 
 # set variables from vs.cnf
@@ -167,7 +160,7 @@ if ( exists $opts{STATS} ) {
     my @stat_cols = $stat_sth->{NAME}->@*;
     my $min_width = max(map { length($_) } @stat_cols);
     my %run_stats = $stat_sth->fetchrow_hashref()->%*;
-    
+
     for my $s (@stat_cols) {
         if ($s =~ /^TIME_/ && defined $run_stats{$s}) {
             my ($d, $h, $m);
@@ -189,11 +182,13 @@ if ( exists $opts{STATS} ) {
 # Die if no starting step is supplied
 die "$HELPSTRING\n" unless @ARGV;
 
-# Send config back to vutil lib and validate, after including CLI options
+# Send config back to vutil lib and validate, with CLI options taking precedent.
 set_config(%opts);
 
 # write out the config file
-print_config($run_dir);
+#   no..... why would you do this except to initialize a local copy?
+#   you don't want this if one already exists.
+# print_config($run_dir);
 
 # print Dumper(\%opts);
 # print Dumper(@ARGV);
@@ -238,55 +233,22 @@ my $TRF2PROCLU_EXE = 'trf2proclu-ngs.exe';
 my $TRF2PROCLU_PARAM
     = "'./$TRF2PROCLU_EXE' -m $MATCH -s $MISMATCH -i $INDEL -p $MIN_PERIOD_REQUIRED -l $opts{MIN_FLANK_REQUIRED}";
 
-if ( $DOALLSTEPS < 0 ) {
-    die("Please set doallsteps (DOALLSTEPS) variable.\n");
-}
+die("Please set doallsteps (DOALLSTEPS) variable.\n") unless ($DOALLSTEPS >= 0)
 
-# check if required files and directories present and have correct permissions
-unless ( -e $TRF_EXECUTABLE ) { die("File '$TRF_EXECUTABLE' not found!"); }
-unless ( -e $TRF2PROCLU_EXE ) { die("File '$TRF2PROCLU_EXE' not found!"); }
-unless ( -e "redund.exe" )    { die("File 'redund.exe' not found!"); }
-unless ( -e "join_clusters.exe" ) {
-    die("File 'join_clusters.exe' not found!");
-}
-unless ( -e "flankalign.exe" ) { die("File 'flankalign.exe' not found!"); }
-unless ( -e "refflankalign.exe" ) {
-    die("File 'refflankalign.exe' not found!");
-}
-unless ( -e "pcr_dup.exe" ) { die("File 'pcr_dup.exe' not found!"); }
-unless ( -e $install_dir )  { die("Directory '$install_dir' not found!"); }
+# verify executables
+my @executables = [
+    $install_dir, $TRF_EXECUTABLE, $TRF2PROCLU_EXE, "redund.exe", 
+    "flankalign.exe", "refflankalign.exe", "pcr_dup.exe", "join_clusters.exe"];
 
-unless ( -x $TRF_EXECUTABLE ) {
-    die("File '$TRF_EXECUTABLE' not executable!");
+for my $exec (@executables) {
+    die("'$exec' not found!") unless (-e $exec);
+    die("'$exec' not executable!") unless (-x $exec);
 }
-unless ( -x $TRF2PROCLU_EXE ) {
-    die("File '$TRF2PROCLU_EXE' not executable!");
-}
-unless ( -x "redund.exe" ) { die("File 'redund.exe' not found!"); }
-unless ( -x "join_clusters.exe" ) {
-    die("File 'join_clusters.exe' not executable!");
-}
-unless ( -x "flankalign.exe" ) {
-    die("File 'flankalign.exe' not executable!");
-}
-unless ( -x "refflankalign.exe" ) {
-    die("File 'refflankalign.exe' not executable!");
-}
-unless ( -x "pcr_dup.exe" ) { die("File 'pcr_dup.exe' not executable!"); }
-unless ( -x $install_dir ) {
-    die("Directory '$install_dir' not executable!");
-}
-
-#unless (-x "$opts{HTML_DIR}/aln.exe") { die("File '$opts{HTML_DIR}/aln.exe' not executable!"); }
-#unless (-x "$opts{HTML_DIR}/malign") { die("File '$opts{HTML_DIR}/malign' not executable!"); }
 
 ################################################################
 sub SetError {
-
     my $argc = @_;
-    if ( $argc < 3 ) {
-        die "SetError: expects 3 parameters, passed $argc !\n";
-    }
+    die "SetError expects 3 parameters, passed $argc.\n" unless ($argc >= 3);
 
     my $VALUE1 = $_[0];
     my $VALUE2 = $_[1];
@@ -299,16 +261,10 @@ sub SetError {
         }
     );
 
-    # set_statistics( $opts{DBSUFFIX}, "ERROR_STEP", $VALUE1 );
-    # set_statistics( $opts{DBSUFFIX}, "ERROR_DESC", $VALUE2 );
-    # set_statistics( $opts{DBSUFFIX}, "ERROR_CODE", $VALUE3 );
-
     return 0;
 }
 
 sub ClearError {
-
-    my $argc  = @_;
     my @stats = qw(
         DATE_MYSQLCREATE
         DATE_TRF
@@ -356,15 +312,12 @@ sub ClearError {
 }
 
 sub GetError {
-
     my $err_hash = get_statistics(qw(ERROR_STEP ERROR_DESC ERROR_CODE));
     return $err_hash;
 }
 
 sub GetNextStep {
-
     # note: this will return 0 regardless if step 0 has been completed or not
-    my $rc;
     my @stats = qw(
         DATE_MYSQLCREATE
         DATE_TRF
@@ -402,8 +355,6 @@ sub GetNextStep {
             return 0;
         }
     }
-
-    say 0;
     return 0;
 }
 

@@ -81,19 +81,19 @@ add_subdirectory(postinst)
 
 # Install config and other files
 install(CODE "
-    if (EXISTS \"${CMAKE_INSTALL_PREFIX}/${InstallSuffix}/vs.cnf\")
-        MESSAGE(STATUS \"vs.cnf file exists. Will install new version as 'vs.cnf.new'\")
-        file(INSTALL \"${CMAKE_SOURCE_DIR}/vs.cnf\"
+    if (EXISTS \"${CMAKE_INSTALL_PREFIX}/${InstallSuffix}/defaults.vs.cnf\")
+        MESSAGE(STATUS \"defaults.vs.cnf file exists. Will install new version as 'defaults.vs.cnf.new'\")
+        file(INSTALL \"${CMAKE_SOURCE_DIR}/defaults.vs.cnf\"
             DESTINATION ${CMAKE_INSTALL_PREFIX}/${InstallSuffix}
-            RENAME \"vs.cnf.new\"
+            RENAME \"defaults.vs.cnf.new\"
             PERMISSIONS OWNER_READ OWNER_WRITE GROUP_READ WORLD_READ
         )
     else()
-        file(INSTALL \"${CMAKE_SOURCE_DIR}/vs.cnf\"
+        file(INSTALL \"${CMAKE_SOURCE_DIR}/defaults.vs.cnf\"
             DESTINATION ${CMAKE_INSTALL_PREFIX}/${InstallSuffix}
             PERMISSIONS OWNER_READ OWNER_WRITE GROUP_READ WORLD_READ
         )
-    endif(EXISTS \"${CMAKE_INSTALL_PREFIX}/${InstallSuffix}/vs.cnf\")
+    endif(EXISTS \"${CMAKE_INSTALL_PREFIX}/${InstallSuffix}/defaults.vs.cnf\")
 ")
 SET(MISC_FILES
     HISTORY
