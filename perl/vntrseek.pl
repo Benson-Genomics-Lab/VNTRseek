@@ -145,7 +145,7 @@ if ( !exists $opts{"DBSUFFIX"} ) {
 $opts{"DBSUFFIX"} = lc( $opts{"DBSUFFIX"} );
 my $config_file = "$run_dir/" . $opts{'DBSUFFIX'} . ".vs.cnf";
 
-# set variables from vs.cnf
+# set variables from configs
 my %conf_vars = get_config( $opts{'DBSUFFIX'}, $run_dir );
 for my $k ( keys %conf_vars ) {
     $opts{$k} = $conf_vars{$k}
@@ -233,12 +233,12 @@ my $TRF2PROCLU_EXE = 'trf2proclu-ngs.exe';
 my $TRF2PROCLU_PARAM
     = "'./$TRF2PROCLU_EXE' -m $MATCH -s $MISMATCH -i $INDEL -p $MIN_PERIOD_REQUIRED -l $opts{MIN_FLANK_REQUIRED}";
 
-die("Please set doallsteps (DOALLSTEPS) variable.\n") unless ($DOALLSTEPS >= 0)
+die("Please set doallsteps (DOALLSTEPS) variable.\n") unless ($DOALLSTEPS >= 0);
 
 # verify executables
-my @executables = [
+my @executables = (
     $install_dir, $TRF_EXECUTABLE, $TRF2PROCLU_EXE, "redund.exe", 
-    "flankalign.exe", "refflankalign.exe", "pcr_dup.exe", "join_clusters.exe"];
+    "flankalign.exe", "refflankalign.exe", "pcr_dup.exe", "join_clusters.exe");
 
 for my $exec (@executables) {
     die("'$exec' not found!") unless (-e $exec);

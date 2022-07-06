@@ -309,7 +309,7 @@ sub set_config {
             . " or obtain the permissions (read, write, execute)."
         );
     }
-    unless ( !-e $in_hash{TMPDIR} and !mkdir( $in_hash{TMPDIR} ) or !-x _ or !-w _ ) {
+    if ( !-e $in_hash{TMPDIR} and !mkdir( $in_hash{TMPDIR} ) or !-x _ or !-w _ ) {
         die("Error accessing temp directory ($in_hash{TMPDIR})."
             . " Please check the path.\nYou may need to create it manually"
             . " or obtain the permissions (read, write, execute)."
