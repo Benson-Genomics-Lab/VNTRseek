@@ -780,24 +780,18 @@ if ( $STEP == 5 ) {
 }
 
 if ( $STEP == 6 ) {
-
-    print STDERR "\n\nSTEP #$STEP IS EMPTY!";
-    print STDERR "done!\n";
+    print STDERR "Step #$STEP is empty.\n";
 
     if    ( $STEPEND == $STEP ) { $STEP = 100; }
     elsif ($DOALLSTEPS)         { $STEP = 7; }
 }
 
 if ( $STEP == 7 ) {
-
     $timestart = time();
-    my $exstring;
-    warn "Executing step #$STEP (this step is EMPTY!)...";
+    print STDERR "Step #$STEP is empty.\n";
 
     set_statistics( { TIME_DB_INSERT_REFS => time() - $timestart } );
     set_datetime("DATE_DB_INSERT_REFS");
-
-    print STDERR "done!\n";
 
     if    ( $STEPEND == $STEP ) { $STEP = 100; }
     elsif ($DOALLSTEPS)         { $STEP = 8; }
@@ -936,144 +930,11 @@ if ( $STEP == 10 ) {
 }
 
 if ( $STEP == 11 ) {
-
     $timestart = time();
-    my $exstring;
-
-    # print STDERR "\n\nExecuting step #$STEP (aligning ref-ref flanks)...";
-    print STDERR "\n\nExecuting step #$STEP (This step does nothing!)...";
-
-  # TODO Don't use this. Change so that the new produce_indist script is used.
-  # Will require new param
-  # if ( $opts{REFERENCE_INDIST_PRODUCE} ) {
-  #     print STDERR "\n\n(generating indist file)...";
-
-    #     # enter result dir
-    #     if ( !chdir("${read_profiles_folder_clean}/result") ) {
-    #         { die("result directory does not exist!"); }
-    #     }
-
-#     # copy reference file to result dir
-#     # TODO change so that referece file does not need to be in install dir
-#     system("cp ${install_dir}/$opts{REFERENCE_FILE} .");
-#     if ( $? == -1 ) {
-#         SetError( $STEP, "command failed: $!", -1 );
-#         die "command failed: $!\n";
-#     }
-#     else {
-#         my $rc = ( $? >> 8 );
-#         if ( 0 != $rc ) {
-#             SetError(
-#                 $STEP,
-#                 "copying reference leb36 profile file into reference profiles folder",
-#                 $rc
-#             );
-#             die "command exited with value $rc";
-#         }
-#     }
-
-    #     $exstring
-    #         = "${install_dir}/$PROCLU_EXECUTABLE" . " "
-    #         . "${reference_folder}/reference.leb36" . " "
-    #         . "$opts{REFERENCE_FILE}" . " "
-    #         . "${install_dir}/eucledian.dst" . " "
-    #         . $CLUST_PARAMS . " "
-    #         . 5
-    #         . " 0  -r 50 2> "
-    #         . "ref_to_ref.proclu_log";
-    #     print "\nrunning: $exstring\n";
-    #     system($exstring);
-    #     if ( $? == -1 ) {
-    #         SetError( $STEP, "command failed: $!", -1 );
-    #         die "command failed: $!\n";
-    #     }
-    #     else {
-    #         my $rc = ( $? >> 8 );
-    #         if ( 0 != $rc ) {
-    #             SetError( $STEP, "aligning ref-ref flanks failed", $rc );
-    #             die "command exited with value $rc";
-    #         }
-    #     }
-
-    #     my $refclusfile = "$opts{REFERENCE_FILE}.clu";
-    #     system("mv $refclusfile ${install_dir}/");
-    #     if ( $? == -1 ) {
-    #         SetError( $STEP, "command failed: $!", -1 );
-    #         die "command failed: $!\n";
-    #     }
-    #     else {
-    #         my $rc = ( $? >> 8 );
-    #         if ( 0 != $rc ) {
-    #             SetError( $STEP, "aligning ref-ref flanks failed", $rc );
-    #             die "command exited with value $rc";
-    #         }
-    #     }
-    #     $refclusfile = "${install_dir}/$refclusfile";
-
-    #     # create final indist file
-    #     my $indist_withpath = "${install_dir}/$opts{REFERENCE_INDIST}";
-    #     open my $tofile, ">", "$indist_withpath" or die $!;
-    #     open my $file,   "<", "$refclusfile"     or die $!;
-    #     while (<$file>) {
-    #         my @values = split( ' ', $_ );
-    #         my $repcount = @values - 1;
-
-    #         my $i = 0;
-    #         foreach my $val (@values) {
-
-    #             $i++;
-    #             $val = trim($val);
-
-    #             if ( my $ch = ( $val =~ m/(\-*\d+)([\-\+])$/g ) ) {
-    #                 if ( $1 < 0 && $repcount > 2 ) {
-    #                     print $tofile $1 . "\n";
-    #                 }
-    #             }
-
-    #         }
-
-    #     }
-    #     close($file);
-    #     close($tofile);
-
-#     # remove working files
-#     system(
-#         "rm -f ${read_profiles_folder_clean}/result/$opts{REFERENCE_FILE} -f"
-#     );
-#     system(
-#         "rm -f ${read_profiles_folder_clean}/result/ref_to_ref.proclu_log -f"
-#     );
-
-    #     # go back to install dir
-    #     if ( !chdir("$install_dir") ) {
-    #         { die("Install directory does not exist!"); }
-    #     }
-
-  #   # update DB
-  #   # TODO Replace this with a script which simply sets the flank comparison
-  #   # parameters (apparently constant at max_errors = 5 and trim_to = 50, is
-  #   # this ever used??)
-  #     print STDERR "\n\n(updating database with dist/indist info)...";
-  #     $exstring = "./update_indist.pl";
-  #     my @exargs = ( qw(-r -k5 -t50 -d), $opts{DBSUFFIX}, "-u", $MSDIR );
-  #     system( $exstring, @exargs );
-  #     if ( $? == -1 ) {
-  #         SetError( $STEP, "command failed: $!", -1 );
-  #         die "command failed: $!\n";
-  #     }
-  #     else {
-  #         my $rc = ( $? >> 8 );
-  #         if ( 0 != $rc ) {
-  #             SetError( $STEP,
-  #                 "updating database with dist/undist info failed", $rc );
-  #             die "command exited with value $rc";
-  #         }
-  #     }
-  # }
+    print STDERR "Step #$STEP is empty.\n";
 
     set_statistics( { TIME_MAP_REFFLANKS => time() - $timestart } );
     set_datetime("DATE_MAP_REFFLANKS");
-    print STDERR "done!\n";
 
     if    ( $STEPEND == $STEP ) { $STEP = 100; }
     elsif ($DOALLSTEPS)         { $STEP = 12; }
@@ -1285,14 +1146,11 @@ if ( $STEP == 17 ) {
 }
 
 if ( $STEP == 18 ) {
-
     $timestart = time();
-
-    print STDERR "\n\nStep #$STEP is empty.";
+    print STDERR "\n\nStep #$STEP is empty.\n";
 
     set_statistics( { TIME_ASSEMBLYREQ => time() - $timestart } );
     set_datetime("DATE_ASSEMBLYREQ");
-    print STDERR "done!\n";
 
     if    ( $STEPEND == $STEP ) { $STEP = 100; }
     elsif ($DOALLSTEPS)         { $STEP = 19; }

@@ -1,7 +1,7 @@
 #!/usr/bin/env perl
 
 # command line usage example:
-#  ./run_trf.pl 6 fasta
+#  ./run_trf_ng.pl 6 fasta
 # where 6 is the number of files to process in one batch
 # and fasta is the input directory containing zipped files
 #
