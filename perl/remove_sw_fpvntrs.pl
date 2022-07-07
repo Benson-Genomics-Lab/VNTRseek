@@ -102,7 +102,10 @@ for my $d ( sort keys %discard ) {
 # }
 ### End testing
 
-my @ref_files = @run_conf{qw(REFRENCE_FILE REFERENCE_SEQ REFERENCE_INDIST)};
+my @ref_files = (
+    $opts{'REFERENCE'} . ".leb36",
+    $opts{'REFERENCE'} . ".seq",
+    $opts{'REFERENCE'} . ".indist");
 my $tr_count;
 for my $r (@ref_files) {
     $tr_count = write_ref_file($r);

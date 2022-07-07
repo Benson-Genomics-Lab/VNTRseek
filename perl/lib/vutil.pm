@@ -24,7 +24,6 @@ our @EXPORT_OK
 # reading/writing, and miscellaneous common utilities.
 
 my %VSCNF_FILE  = ();
-my $VSREAD      = 0;
 my %valid_stats = (
     MAP_ROOT                                            => 1,
     PARAM_TRF                                           => 1,
@@ -142,9 +141,10 @@ sub read_config_file {
         unless (@_);
 
     my $file_loc = shift;
-    open(my $cnf, "<", "$file_loc") or die "$!";
+    my %opts = ();
 
     # read config
+    open(my $cnf, "<", "$file_loc") or die "$!";
     while (<$cnf>) {
         chomp;
         if (/^\#/) { next;} # skip comments
@@ -153,174 +153,166 @@ sub read_config_file {
             my $key = trim($1);
             my $val = trim($2);
             $val =~ s/\s*\#.*//;    # strip end comments
-            $VSCNF_FILE{ uc($key) } = $val;
+            $opts{ uc($key) } = $val;
         }
     }
     close($cnf);
-    return 1;
+    return %opts;
 }
 
 ################################################################
 sub get_config {
-    croak "get_config() expects 2 parameters\n"
-        unless ( @_ == 2 );
+    croak "get_config() expects an even number of parameters\n"
+        unless (scalar @_ % 2 == 0);
+    my %args = @_;
 
-    my ( $dbsuffix, $config_loc ) = @_;
-    my $installdir  = "$FindBin::RealBin";
-    my $config_file = "$config_loc/$dbsuffix.vs.cnf";
+    # load default settings
+    my %opts = read_config_file("$FindBin::RealBin/defaults.vs.cnf");
 
-    # $VSCNF_FILE{NEW_RUN} = 0;
-    if (!$VSREAD) { # why? how is this accessed that this is a concern?
-        # Read defaults file first.
-        read_config_file("$installdir/defaults.vs.cnf");
-
-        if (-e $config_file) { # this should not be mandatory
-            read_config_file($config_file);
+    # load local settings
+    if (exists $args{"CONFIG"}) {
+        my %local = read_config_file($args("CONFIG"));
+        for my $key (keys %local) {
+            $opts{$key} = $local{$key};
         }
-
-        # Set VSREAD;
-        $VSREAD               = 1;
-        $VSCNF_FILE{DBSUFFIX} = $dbsuffix;
-        $VSCNF_FILE{CONF_DIR} = $config_loc;
     }
 
-    return %VSCNF_FILE;
-}
-
-################################################################
-sub set_config {
-    my %in_hash = @_;
-
-    # Validation
-    unless ( $in_hash{SERVER} ) {
-        croak(
-            "Please set machine name (SERVER) variable on the command line or in the configuration file.\n"
-        );
-    }
-
-    if ( $in_hash{NPROCESSES} <= 0 ) {
-        warn(     "NPROCESSES not set. Using default of 2. "
-                . "Please set number of processes to be used by the pipeline "
-                . "(NPROCESSES) variable on the command line or in the "
-                . "configuration file.\n " );
-        $in_hash{NPROCESSES} = 2;
-    }
-
-    if ( $in_hash{MIN_FLANK_REQUIRED} <= 0 ) {
-        croak(
-            "Please set min flank required to be used by the pipeline (MIN_FLANK_REQUIRED) variable on the command line or in the configuration file.\n"
-        );
-    }
-
-    if ( $in_hash{MAX_FLANK_CONSIDERED} <= 0 ) {
-        croak(
-            "Please set max flank required to be used by the pipeline (MAX_FLANK_CONSIDERED) variable on the command line or in the configuration file.\n"
-        );
-    }
-
-    if ( $in_hash{MIN_SUPPORT_REQUIRED} <= 0 ) {
-        croak(
-            "Please set min support required to be used by the pipeline (MIN_SUPPORT_REQUIRED) variable on the command line or in the configuration file.\n"
-        );
-    }
-
-    if ( $in_hash{STRIP_454_KEYTAGS} < 0 ) {
-        croak(
-            "Please set strip_454_keytags (strip_454_keytags) variable on the command line or in the configuration file.\n"
-        );
-    }
-
-    if ( $in_hash{REFERENCE_INDIST_PRODUCE} < 0 ) {
-        croak(
-            "Please set reference_indist_produce to be used by the pipeline (reference_indist_produce) variable on the command line or in the configuration file.\n"
-        );
-    }
-
-    if ( $in_hash{IS_PAIRED_READS} < 0 ) {
-        croak(
-            "Please set is_paired_reads (is_paired_reads) variable on the command line or in the configuration file.\n"
-        );
-    }
-
-    unless ( $in_hash{PLOIDY} ) {
-        $in_hash{PLOIDY} = 2;
-        warn(
-            "Option 'ploidy' is not set. Setting default: $in_hash{PLOIDY}.\n"
-        );
+    # write command line settings
+    for my $key (keys %args) {
+        $opts{$key} = $args{$key};
     }
 
     # For older runs where FASTA_DIR was the name of the option
-    if ( exists $in_hash{FASTA_DIR} && $in_hash{FASTA_DIR} ) {
-        $in_hash{INPUT_DIR} = $in_hash{FASTA_DIR};
-    }
+    my %renames = (
+        'FASTA_DIR', 'INPUT_DIR'#, other renames coming soon
+        #'OUTPUT_ROOT', 'OUTPUT_DIR',
+        #'TMPDIR', 'TMP_DIR',
+        #'DBSUFFIX', 'DBPREFIX'
+    );
 
-    unless ( exists $in_hash{INPUT_DIR} && $in_hash{INPUT_DIR} ) {
-        croak(
-            "Please set input directory (input_dir) variable on the command line or in the configuration file.\n"
-        );
-    }
-
-    if ( "" eq $in_hash{OUTPUT_ROOT} ) {
-        croak(
-            "Please set output directory (output_root) variable on the command line or in the configuration file.\n"
-        );
-    }
-
-    if ( "" eq $in_hash{REFERENCE} ) {
-        croak(
-            "Please set reference file base name (reference) variable on the command line or in the configuration file.\n"
-        );
-    }
-
-    if ( "" eq $in_hash{TMPDIR} ) {
-        warn
-            "'tmpdir' is not set. Using '/tmp'. Call vntrseek with --tmpdir <directory> to change this.\n";
-    }
-
-    if ( !( -e $in_hash{REFERENCE} . ".db" ) || $in_hash{REDO_REFDB} ) {
-        my $err;
-        $in_hash{REFERENCE_DB}     = $in_hash{REFERENCE} . ".db";
-        $in_hash{REFERENCE_SEQ}    = $in_hash{REFERENCE} . ".seq";
-        $in_hash{REFERENCE_FILE}   = $in_hash{REFERENCE} . ".leb36";
-        $in_hash{REFERENCE_INDIST} = $in_hash{REFERENCE} . ".indist";
-        unless ( -e $in_hash{REFERENCE_FILE} ) {
-            $err = "File '$in_hash{REFERENCE_FILE}' not found!";
-        }
-        unless ( -e $in_hash{REFERENCE_SEQ} ) {
-            $err = "File '$in_hash{REFERENCE_SEQ}' not found!";
-        }
-        if (   !( -e $in_hash{REFERENCE_INDIST} )
-            && !$in_hash{REFERENCE_INDIST_PRODUCE} )
-        {
-            $err = "File '$in_hash{REFERENCE_INDIST}' not found!";
-        }
-
-        die "Error: $err File necessary to build reference set database "
-            . "(see VNTRseek documentation).\n"
-            if ($err);
-    }
-
-    unless ( -e $in_hash{INPUT_DIR} ) {
-        die("Error: input directory '$in_hash{INPUT_DIR}' not found!");
-    }
-    if ( !-e $in_hash{OUTPUT_ROOT} and !mkdir( $in_hash{OUTPUT_ROOT} ) or !-x _ or !-w _ ) {
-        die("Error accessing output root ($in_hash{OUTPUT_ROOT})."
-            . " Please check the path.\nYou may need to create it manually"
-            . " or obtain the permissions (read, write, execute)."
-        );
-    }
-    if ( !-e $in_hash{TMPDIR} and !mkdir( $in_hash{TMPDIR} ) or !-x _ or !-w _ ) {
-        die("Error accessing temp directory ($in_hash{TMPDIR})."
-            . " Please check the path.\nYou may need to create it manually"
-            . " or obtain the permissions (read, write, execute)."
-        );
+    for my $old_name (keys %renames) {
+        if ($opts{$old_name}) { $opts{$renames{$old_name}} = $opts{$old_name};}
     }
 
     # DELETEME While testing, this option is always sqlite.
     # In final version, this option will be gone completely.
-    $in_hash{BACKEND} = "sqlite";
-    %VSCNF_FILE       = %in_hash;
-    $VSREAD           = 1;
+    $opts{'BACKEND'} = 'sqlite';
+
+    # keep a local copy of everything and send back the results
+    %VSCNF_FILE = %opts;
+    return %opts;
+}
+
+################################################################
+sub validate_config {
+    my $please_check = "Please check the command line arguments or the configuration file.\n";
+
+    # Validation
+    croak("Please set the database prefix (DBSUFFIX) on the command line or in the configuration file.\n")
+        unless exists $VSCNF_FILE{'DBSUFFIX'} and $VSCNF_FILE{'DBSUFFIX'};
+
+    croak("Please set the input directory (INPUT_DIR) on the command line or in the configuration file.\n")
+        unless exists $VSCNF_FILE{'INPUT_DIR'} and $VSCNF_FILE{'INPUT_DIR'};
+    croak("Input directory '$VSCNF_FILE{'INPUT_DIR'}' could not be read. Check the spelling and/or your permissions.")
+        unless -r -e $VSCNF_FILE{'INPUT_DIR'};
+
+    croak("OUTPUT_ROOT value cannot be blank. " . $please_check)
+        unless $VSCNF_FILE{'OUTPUT_ROOT'};
+    croak("Output directory '$VSCNF_FILE{'OUTPUT_ROOT'}' could not be accessed. Check the spelling and/or your permissions.")
+        unless (-e $VSCNF_FILE{'OUTPUT_ROOT'} or mkdir( $VSCNF_FILE{'OUTPUT_ROOT'} )) and -x -w $VSCNF_FILE{'OUTPUT_ROOT'};
+
+    if (!$VSCNF_FILE{'TMPDIR'}) {
+        $VSCNF_FILE{'TMPDIR'} = $VSCNF_FILE{'OUTPUT_ROOT'};
+        warn "TMPDIR not set. Using OUTPUT_ROOT ($VSCNF_FILE{'OUTPUT_ROOT'}).\n"
+             . "TMPDIR variable can be set on the command line or in the configuration file.";
+    }
+    else {
+        croak("Temporary file directory '$VSCNF_FILE{'TMPDIR'}' could not be accessed. Check the spelling and/or your permissions.")
+            unless (-e $VSCNF_FILE{'TMPDIR'} or mkdir( $VSCNF_FILE{'TMPDIR'} )) and -x -w $VSCNF_FILE{'TMPDIR'};
+    }
+
+    croak("SERVER value cannot be blank. " . $please_check)
+        unless $VSCNF_FILE{'SERVER'};
+
+
+    croak("PLOIDY value must be > 0. " .  $please_check)
+        unless $VSCNF_FILE{'PLOIDY'} > 0;
+
+    croak("READ_LENGTH value must be > 0. " . $please_check)
+        unless $VSCNF_FILE{'READ_LENGTH'} > 0;
+
+    croak("IS_PAIRED_READS value must be 0/1. " . $please_check)
+        unless $VSCNF_FILE{'IS_PAIRED_READS'} >= 0;
+
+    croak("STRIP_454_KEYTAGS value must be 0/1. " . $please_check)
+        unless $VSCNF_FILE{'STRIP_454_KEYTAGS'} >= 0;
+
+    croak("KEEPPCRDUPS value must be 0/1. " . $please_check)
+        unless $VSCNF_FILE{'KEEPPCRDUPS'} >= 0;
+
+
+    croak("MIN_FLANK_REQUIRED value must be > 0. " . $please_check)
+        unless $VSCNF_FILE{'MIN_FLANK_REQUIRED'} > 0;
+
+    croak("MAX_FLANK_CONSIDERED value must be > 0. " . $please_check)
+        unless $VSCNF_FILE{'MAX_FLANK_CONSIDERED'} > 0;
+
+    croak("MIN_SUPPORT_REQUIRED value must be > 0. " . $please_check)
+        unless $VSCNF_FILE{'MIN_SUPPORT_REQUIRED'} > 0;
+
+
+    if ( $VSCNF_FILE{'NPROCESSES'} <= 0 ) {
+        $VSCNF_FILE{'NPROCESSES'} = 2;
+        warn("NPROCESSES not set. Using default of $VSCNF_FILE{'NPROCESSES'}.\n"
+             . "NPROCESSES variable can be set on the command line or in the configuration file.\n");
+    }
+
+
+    croak("Please set the reference base name (REFERENCE) on the command line or in the configuration file.\n")
+        unless $VSCNF_FILE{'REFERENCE'};
+
+    croak("REFERENCE_INDIST_PRODUCE value must be 0/1. " . $please_check)
+        unless $VSCNF_FILE{'REFERENCE_INDIST_PRODUCE'} >= 0;
+
+    if ( !( -e $VSCNF_FILE{'REFERENCE'} . ".db" ) || $VSCNF_FILE{'REDO_REFDB'} ) {
+        for my $ext ('.leb36', '.seq', '.indist') {
+            croak("Reference file '$VSCNF_FILE{'REFERENCE'}$ext' not found!\n"
+                  . "You may need to rebuild the reference db with REDO_REFDB option.\n")
+                unless -r -e $VSCNF_FILE{'REFERENCE'} . $ext;
+        }
+    }
+}
+
+################################################################
+sub print_config {
+    my $output_folder = "$VSCNF_FILE{'OUTPUT_ROOT'}/vntr_$VSCNF_FILE{'DBSUFFIX'}"
+    my $config_file = "$output_folder/" . $VSCNF_FILE{'DBSUFFIX'} . ".vs.cnf";
+    open( my $config_fh, ">", $config_file )
+        or die "Cannot open '$config_file' for writing!\n"
+
+    print $config_fh <<CNF;
+INPUT_DIR=$VSCNF_FILE{"INPUT_DIR"}
+OUTPUT_ROOT=$VSCNF_FILE{"OUTPUT_ROOT"}
+TMPDIR=$VSCNF_FILE{"TMPDIR"}
+SERVER=$VSCNF_FILE{"SERVER"}
+
+REFERENCE=$VSCNF_FILE{"REFERENCE"}
+REDO_REFDB=$VSCNF_FILE{"REDO_REFDB"}
+REFERENCE_INDIST_PRODUCE=$VSCNF_FILE{"REFERENCE_INDIST_PRODUCE"}
+
+PLOIDY=$VSCNF_FILE{"PLOIDY"}
+IS_PAIRED_READS=$VSCNF_FILE{"IS_PAIRED_READS"}
+KEEPPCRDUPS=$VSCNF_FILE{"KEEPPCRDUPS"}
+STRIP_454_KEYTAGS=$VSCNF_FILE{"STRIP_454_KEYTAGS"}
+
+MIN_FLANK_REQUIRED=$VSCNF_FILE{"MIN_FLANK_REQUIRED"}
+MAX_FLANK_CONSIDERED=$VSCNF_FILE{"MAX_FLANK_CONSIDERED"}
+MIN_SUPPORT_REQUIRED=$VSCNF_FILE{"MIN_SUPPORT_REQUIRED"}
+
+NPROCESSES=$VSCNF_FILE{"NPROCESSES"}
+CNF
+    close($config_fh);
+    chmod 0640, $config_file; #why?
 }
 
 ####################################
@@ -381,10 +373,6 @@ sub get_statistics {
   # if ( $argc < 2 ) {
   #     die "get_statistics: expects at least 2 parameters, passed $argc !\n";
   # }
-    unless ($VSREAD) {
-        carp
-            "Error: must call `get_config(dbsuffix, config_loc)` before this function.\n";
-    }
 
     # my $DBSUFFIX = shift;
     my @stats = grep { exists $valid_stats{$_} } @_;
@@ -439,9 +427,8 @@ sub _init_ref_dbh {
         set_indist( $dbh, $refindist, $opts->{redo} );
     }
 
-    if ( $opts->{redo} && $VSREAD ) {
+    if ( $opts->{redo} ) {
         $VSCNF_FILE{REDO_REFDB} = 0;
-        # print_config( $VSCNF_FILE{CONF_DIR} ); no, no we don't rewrite the user created config, ever.
     }
 
     # END TODO
@@ -458,11 +445,11 @@ sub _init_ref_dbh {
 }
 ################################################################
 sub get_ref_dbh {
-    unless ( @_ >= 1 ) {
-        croak "Error: expecting at least 1 argument, got none.\n";
-    }
+    croak "Error: expecting at least 1 argument, got none.\n"
+        unless ( @_ >= 1 );
+
     my ( $refbase, $opts ) = @_;
-    ( $ENV{DEBUG} ) && warn "get_ref_dbh arguments: " . Dumper( \@_ ) . "\n";
+    if ( $ENV{DEBUG} ) { warn "get_ref_dbh arguments: " . Dumper( \@_ ) . "\n" };
     my $dbh = _init_ref_dbh( $refbase, $opts );
 
     return $dbh;
@@ -470,10 +457,6 @@ sub get_ref_dbh {
 
 ################################################################
 sub get_dbh {
-    unless ($VSREAD) {
-        croak
-            "Error: must call `get_config(dbsuffix, config_loc)` before this function.\n";
-    }
 
     # Might use in the future, connection options
     my $opts = shift // {};
@@ -1167,10 +1150,6 @@ sub run_redund {
 
 ################################################################
 sub write_sqlite {
-    unless ($VSREAD) {
-        carp
-            "Error: must call `get_config(dbsuffix, config_loc)` before this function.\n";
-    }
 
     my $output_folder = "$VSCNF_FILE{OUTPUT_ROOT}/vntr_$VSCNF_FILE{DBSUFFIX}";
     if ( !-e "$output_folder" ) {
@@ -1293,148 +1272,7 @@ sub vs_db_insert {
 
 ################################################################
 
-sub print_config {
-    my $argc = @_;
-    croak "print_config expects 1 parameters, passed $argc!\n"
-        unless $argc == 1;
 
-    my $startdir = $_[0];
-
-    $VSCNF_FILE{"INPUT_DIR"} = "" unless defined $VSCNF_FILE{"INPUT_DIR"};
-    $VSCNF_FILE{"OUTPUT_ROOT"} = "" unless defined $VSCNF_FILE{"OUTPUT_ROOT"};
-
-    if ( !defined $VSCNF_FILE{"TMPDIR"} ) { $VSCNF_FILE{"TMPDIR"} = ""; }
-    if ( !defined $VSCNF_FILE{"REFERENCE_FILE"} ) {
-        $VSCNF_FILE{"REFERENCE_FILE"} = "";
-    }
-    if ( !defined $VSCNF_FILE{"NPROCESSES"} ) {
-        $VSCNF_FILE{"NPROCESSES"} = -1;
-    }
-    if ( !defined $VSCNF_FILE{"MIN_FLANK_REQUIRED"} ) {
-        $VSCNF_FILE{"MIN_FLANK_REQUIRED"} = -1;
-    }
-    if ( !defined $VSCNF_FILE{"MAX_FLANK_CONSIDERED"} ) {
-        $VSCNF_FILE{"MAX_FLANK_CONSIDERED"} = -1;
-    }
-    if ( !defined $VSCNF_FILE{"MIN_SUPPORT_REQUIRED"} ) {
-        $VSCNF_FILE{"MIN_SUPPORT_REQUIRED"} = -1;
-    }
-
-    if ( !defined $VSCNF_FILE{"SERVER"} ) { $VSCNF_FILE{"SERVER"} = ""; }
-    if ( !defined $VSCNF_FILE{"STRIP_454_KEYTAGS"} ) {
-        $VSCNF_FILE{"STRIP_454_KEYTAGS"} = -1;
-    }
-    if ( !defined $VSCNF_FILE{"IS_PAIRED_READS"} ) {
-        $VSCNF_FILE{"IS_PAIRED_READS"} = -1;
-    }
-    if ( !defined $VSCNF_FILE{"HTML_DIR"} ) { $VSCNF_FILE{"HTML_DIR"} = ""; }
-    
-    if ( !defined $VSCNF_FILE{"REFERENCE_SEQ"} ) {
-        $VSCNF_FILE{"REFERENCE_SEQ"} = "";
-    }
-    if ( !defined $VSCNF_FILE{"REFERENCE_INDIST"} ) {
-        $VSCNF_FILE{"REFERENCE_INDIST"} = "";
-    }
-    if ( !defined $VSCNF_FILE{"REFERENCE_INDIST_PRODUCE"} ) {
-        $VSCNF_FILE{"REFERENCE_INDIST_PRODUCE"} = -1;
-    }
-
-    # look in the directory the script was started in
-    my $config_file = "$startdir/" . $VSCNF_FILE{DBSUFFIX} . ".vs.cnf";
-    if ( open( my $config_fh, ">", $config_file ) ) {
-
-        print $config_fh <<CNF;
-# Database backend
-BACKEND=$VSCNF_FILE{"BACKEND"}
-
-# set this to the number of processors on your system 
-# (or less if sharing the system with others or RAM is limited)
-# eg, 8
-NPROCESSES=$VSCNF_FILE{"NPROCESSES"}
-
-# minimum required flank on both sides for a read TR to be considered
-# eg, 10
-MIN_FLANK_REQUIRED=$VSCNF_FILE{"MIN_FLANK_REQUIRED"}
-
-# maximum flank length used in flank alignments
-# set to big number to use all
-# if read flanks are long with a lot of errors, 
-# it might be useful to set this to something like 50
-# max number of errors per flank is currently set to 8 (can be changed in main script only)
-# eg, 1000
-MAX_FLANK_CONSIDERED=$VSCNF_FILE{"MAX_FLANK_CONSIDERED"}
-
-# minimum number of mapped reads which agree on copy number to call an allele
-# eg, 2
-MIN_SUPPORT_REQUIRED=$VSCNF_FILE{"MIN_SUPPORT_REQUIRED"}
-
-# Whether or not to keep reads detected as PCR duplicates. A nonzero (true) value
-# means that detected PCR duplicates will not be removed. Default is 0.
-KEEPPCRDUPS=$VSCNF_FILE{"KEEPPCRDUPS"}
-
-# server name, used for html generating links
-# eg, orca.bu.edu
-SERVER=$VSCNF_FILE{"SERVER"}
-
-# for 454 platform, strip leading 'TCAG' 
-# eg, 1 - yes
-# eg, 0 - no (use no for all other platforms)
-STRIP_454_KEYTAGS=$VSCNF_FILE{"STRIP_454_KEYTAGS"}
-
-# data is paired reads
-# eg, 0 = no 
-# eg, 1 - yes
-IS_PAIRED_READS=$VSCNF_FILE{"IS_PAIRED_READS"}
-
-# Sample ploidy. Default is 2. For haploid, set to 1.
-PLOIDY=$VSCNF_FILE{"PLOIDY"}
-
-# Rebuild reference database
-# eg, 0 = no 
-# eg, 1 - yes
-REDO_REFDB=$VSCNF_FILE{"REDO_REFDB"}
-
-# input data directory 
-# (plain or gzipped fasta/fastq files)
-# eg, /input
-INPUT_DIR=$VSCNF_FILE{"INPUT_DIR"}
-
-# output directory (must be writable and executable!)
-# eg, /output
-OUTPUT_ROOT=$VSCNF_FILE{"OUTPUT_ROOT"}
-
-# temp (scratch) directory (must be executable!)
-# eg, /tmp
-TMPDIR=$VSCNF_FILE{"TMPDIR"}
-
-# names for the reference files 
-
-# (leb36 file, sequence plus flank data file, indistinguishable references file) 
-# files must be in install directory
-
-# eg, hg19. This is the base name for files describing
-# reference TR loci (.db, .seq, .leb36, and .indist)
-REFERENCE=$VSCNF_FILE{"REFERENCE"}
-
-# generate a file of indistinguishable references, 
-# necessary only if a file is not already available for the reference set
-# eg, 1- generate
-# eg, 0 - don't generate
-REFERENCE_INDIST_PRODUCE=$VSCNF_FILE{"REFERENCE_INDIST_PRODUCE"}
-
-CNF
-
-        close($config_fh);
-
-        chmod 0640, $config_file;
-
-    }
-    else {
-
-        die "print_config: can't open '$config_file' for writing!\n";
-    }
-
-}
 
 ####################################################################################
 

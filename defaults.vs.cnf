@@ -1,14 +1,31 @@
-# Database backend
-BACKEND=sqlite
+# name of the output database
+# should be different for different input data sets
+# eg, data
+DBSUFFIX=
 
-# set this to the number of processors on your system 
-# (or less if sharing the system with others or RAM is limited)
-# eg, 8
-NPROCESSES=-1
+# input data directory
+# (plain or gzipped fasta/fastq files)
+# eg, /input
+INPUT_DIR=
 
-# length of reads from sequencing in fasta
-# eg, 150
-READ_LENGTH=150
+# names for the reference files
+# (leb36 file, sequence plus flank data file, indistinguishable references file)
+# files must be in install directory
+# eg, hg19. This is the base name for files describing
+# reference TR loci (.db, .seq, .leb36, and .indist)
+REFERENCE=
+
+# output directory (must be writable and executable!)
+# eg, /output
+OUTPUT_ROOT=output
+
+# temp (scratch) directory (must be writable and executable!)
+# eg, /tmp
+TMPDIR=
+
+# server name, used for generating html links
+# eg, orca.bu.edu
+SERVER=localhost
 
 # minimum required flank on both sides for a read TR to be considered
 # eg, 10
@@ -16,7 +33,7 @@ MIN_FLANK_REQUIRED=10
 
 # maximum flank length used in flank alignments
 # set to big number to use all
-# if read flanks are long with a lot of errors, 
+# if read flanks are long with a lot of errors,
 # it might be useful to set this to something like 50
 # max number of errors per flank is currently set to 8 (can be changed in main script only)
 # eg, 1000
@@ -26,56 +43,39 @@ MAX_FLANK_CONSIDERED=50
 # eg, 2
 MIN_SUPPORT_REQUIRED=2
 
-# Whether or not to keep reads detected as PCR duplicates. A nonzero (true) value
-# means that detected PCR duplicates will not be removed. Default is 1.
-KEEPPCRDUPS=1
+# Sample ploidy. Default is 2. For haploid, set to 1.
+PLOIDY=2
 
-# server name, used for generating html links
-# eg, orca.bu.edu
-SERVER=localhost
-
-# for 454 platform, strip leading 'TCAG' 
-# eg, 1 - yes
-# eg, 0 - no (use no for all other platforms)
-STRIP_454_KEYTAGS=0
+# length of reads from sequencing in fasta
+# eg, 150
+READ_LENGTH=150
 
 # data is paired reads
 # eg, 0 = no 
 # eg, 1 - yes
 IS_PAIRED_READS=1
 
-# Sample ploidy. Default is 2. For haploid, set to 1.
-PLOIDY=2
+# for 454 platform, strip leading 'TCAG'
+# eg, 1 - yes
+# eg, 0 - no (use no for all other platforms)
+STRIP_454_KEYTAGS=0
+
+# Whether or not to keep reads detected as PCR duplicates. A nonzero (true) value
+# means that detected PCR duplicates will not be removed. Default is 1.
+KEEPPCRDUPS=1
 
 # Force reinitialization of the reference set database
 # eg, 0 = no 
 # eg, 1 - yes
 REDO_REFDB=0
 
-# input data directory 
-# (plain or gzipped fasta/fastq files)
-# eg, /input
-INPUT_DIR=
-
-# output directory (must be writable and executable!)
-# eg, /output
-OUTPUT_ROOT=output
-
-# temp (scratch) directory (must be executable!)
-# eg, /tmp
-TMPDIR=output
-
-# names for the reference files 
-
-# (leb36 file, sequence plus flank data file, indistinguishable references file) 
-# files must be in install directory
-
-# eg, hg19. This is the base name for files describing
-# reference TR loci (.db, .seq, .leb36, and .indist)
-REFERENCE=hg19
-
 # generate a file of indistinguishable references, 
 # necessary only if a file is not already available for the reference set
 # eg, 1 - generate
 # eg, 0 - don't generate
 REFERENCE_INDIST_PRODUCE=0
+
+# set this to the number of processors on your system
+# (or less if sharing the system with others or RAM is limited)
+# eg, 8
+NPROCESSES=-1

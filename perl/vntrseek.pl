@@ -43,72 +43,58 @@ use Getopt::Long qw(GetOptionsFromArray);
 use List::Util qw(min max);
 use lib ( "$FindBin::RealBin/lib", "$FindBin::RealBin/local/lib/perl5" );
 use vutil
-    qw(get_config set_config set_statistics get_statistics write_sqlite get_dbh get_ref_dbh set_datetime print_config create_blank_file run_redund trim);
+    qw(get_config validate_config set_statistics get_statistics write_sqlite get_dbh get_ref_dbh set_datetime print_config create_blank_file run_redund trim);
 
-# VNTRSEEK Version
 my $VERSION = '@VNTRVer@';
-
-# this is where the pipeline is installed
-my $install_dir = "$FindBin::RealBin";
-
-# this is the working directory of the run when calling the script
-my $run_dir = getcwd();
-
-my $DOALLSTEPS = 0
-    ; # set to 0 to do one step at a time (recommended for test run), 1 to run though all steps (THIS IS OTIONAL AS SPECIFYING END STEP IS POSSIBLE)
-
-# TRF options
-my $TRF_EXECUTABLE = '@TRFBin@';
-my $TRF_EXE        = "$install_dir/$TRF_EXECUTABLE";
-
-my $MATCH    = 2;
-my $MISMATCH = 5;
-my $INDEL    = 7;
-my $MIN_PERIOD_REQUIRED
-    = 7;    # anything with pattern less then this is discarded
+my $install_dir = "$FindBin::RealBin"; # where the pipeline is installed
+my $run_dir = getcwd();                # where the script gets called from
 
 #my $REFS_REDUND = 374579;
 my $REFS_REDUND = 0;    # used to be used in latex file, not anymore
 
 # enter install directory
-if ( !chdir("$install_dir") ) {
-    { die("Install directory does not exist!\n"); }
-}
+die("Cannot access install directory ($install_dir).\n")
+    unless chdir("$install_dir");
 
 my $HELPSTRING
     = "\nUsage: $0 --DBSUFFIX <run_name> <start step> <end step> To tell the master script what step to execute. The first step is 0, last step is 19."
     . "\n\nOPTIONS:\n\n"
     . "\t--HELP                        prints this help message\n"
-    . "\t--DBSUFFIX                    suffix for database name (this is the name of your analysis)\n"
-    . "\t--NPROCESSES                  number of processors on your system\n"
-    . "\t--READ_LENGTH                 length of fasta reads\n"
-    . "\t--MIN_FLANK_REQUIRED          minimum required flank on both sides for a read TR to be considered (default 10)\n"
-    . "\t--MAX_FLANK_CONSIDERED        maximum flank length used in flank alignments, set to big number to use full flank (default 50)\n"
-    . "\t--MIN_SUPPORT_REQUIRED        minimum number of mapped reads which agree on copy number to call an allele (default 2)\n"
-    . "\t--KEEPPCRDUPS                 if set to 0, PCR duplicates will be looked for and removed. (default: PCR duplicates are not removed)\n"
-    . "\t--SERVER                      server name, used for html generating links\n"
-    . "\t--STRIP_454_KEYTAGS           for 454 platform, strip leading 'TCAG', 0/1 (default 0)\n"
-    . "\t--IS_PAIRED_READS             data is paired reads, 0/1 (default 1)\n"
-    . "\t--PLOIDY                      sample's ploidy (default 2)\n"
-    . "\t--REDO_REFDB                  force reinitialization of the reference set database, 0/1 (default 0)\n"
-    . "\t--CLEAN                       force reinitialization of the run database. Command line option only.\n"
-    . "\t--HTML_DIR                    html directory (optional, must be writable and executable!)\n"
+    . "\t--DBSUFFIX                    prefix for database name (such as the name of your analysis)\n"
     . "\t--INPUT_DIR                   input data directory (BAM or plain or gzipped fasta/fastq files)\n"
     . "\t--OUTPUT_ROOT                 output directory (must be writable and executable!)\n"
     . "\t--TMPDIR                      temp (scratch) directory (must be writable!)\n"
+    . "\t--SERVER                      server name, used for generating html links\n"
+    . "\n"
     . "\t--REFERENCE                   base name of reference files (default set in global config file)\n"
+    . "\t--REDO_REFDB                  force reinitialization of the reference set database, 0/1 (default 0)\n"
     . "\t--REFERENCE_INDIST_PRODUCE    generate a file of indistinguishable references, 0/1 (default 0)\n"
+    . "\n"
+    . "\t--PLOIDY                      sample's ploidy (default 2)\n"
+    . "\t--READ_LENGTH                 length of fasta reads\n"
+    . "\t--IS_PAIRED_READS             data is paired reads, 0/1 (default 1)\n"
+    . "\t--STRIP_454_KEYTAGS           for 454 platform, strip leading 'TCAG', 0/1 (default 0)\n"
+    . "\t--KEEPPCRDUPS                 if set to 0, PCR duplicates will be looked for and removed. (default: PCR duplicates are not removed)\n"
+    . "\n"
+    . "\t--MIN_FLANK_REQUIRED          minimum required flank on both sides for a read TR to be considered (default 10)\n"
+    . "\t--MAX_FLANK_CONSIDERED        maximum flank length used in flank alignments, set to big number to use full flank (default 50)\n"
+    . "\t--MIN_SUPPORT_REQUIRED        minimum number of mapped reads which agree on copy number to call an allele (default 2)\n"
+    . "\n"
+    . "\t--NPROCESSES                  number of processors on your system\n"
+    . "\t--CONFIG                      path to file with any of the above options. Command line option only.\n"
+    . "\t--GEN_CONFIG                  set with a path to generate a clean config. Command line option only.\n"
+    . "\t--CLEAN                       force reinitialization of the run database. Command line option only.\n"
+    . "\t--STATS                       print out a simple table of run statistics. Command line option only.\n"
     . "\t\n\nADDITIONAL USAGE:\n\n"
     . "\t$0 100                       clear error\n"
     . "\t$0 100 N                     clear error and set NextRunStep to N (0-19, this is only when running on a cluster using the advanced cluster script that checks for NextRunStep)\n"
     . "\t$0 --REFERENCE </path/to/reference/basename> [--REDO_REFDB] to initialize a reference set.\n"
     . "This only needs to be done once for a reference set. Supply --REDO_REFDB to force a recreation of the database.\n\n";
 
-my %opts = ();
-
 # set options based on command line
+my %opts = ();
 GetOptions(
-    \%opts,                   "HELP",
+    \%args,                   "HELP",
     "NPROCESSES=i",           "MIN_FLANK_REQUIRED=i",
     "MAX_FLANK_CONSIDERED=i", "MIN_SUPPORT_REQUIRED=i",
     "KEEPPCRDUPS=i",          "DBSUFFIX=s",
@@ -118,46 +104,41 @@ GetOptions(
     "OUTPUT_ROOT=s",          "TMPDIR=s",
     "REFERENCE=s",            "REFERENCE_INDIST_PRODUCE=i",
     "CLEAN",                  "STATS",
-    "READ_LENGTH=i"
+    "READ_LENGTH=i",          "CONFIG=s"
 );
 
-# print help if asked
-if ( $opts{"HELP"} ) {
-    print $HELPSTRING;
-    exit 0;
+# Print help string if that's all they ask
+if ($opts{'HELP'} or !@ARGV) { print $HELPSTRING; exit;}
+
+# Generate a copy of the default config to serve as a template.
+if ($opts{'GEN_CONFIG'}) {
+    if (-d $opts{'GEN_CONFIG'}) { $opts{'GEN_CONFIG'} .= '/example.vs.cnf';}
+    die "File $opts{'GEN_CONFIG'} already exists. Will not overwrite."
+        if -e $opts{'GEN_CONFIG'};
+
+    system("cp $install_dir/defaults.vs.cnf $opts{'GEN_CONFIG'}");
+    print "Generated example configuration file at $opts{'GEN_CONFIG'}.";
+    exit;
 }
 
-if ( !exists $opts{"DBSUFFIX"} ) {
-    # Initialize a reference set db if --reference was given, but not --dbsuffix
-    if ( exists $opts{REFERENCE} ) {
-        print "\nPreparing reference set $opts{REFERENCE}...\n";
-        my $dbh
-            = get_ref_dbh( $opts{REFERENCE}, { redo => $opts{REDO_REFDB} } );
-        die "Error importing reference set\n" unless $dbh;
-        exit;
-    }
+# Load configuration files and combine with CLI args
+%opts = get_config(%opts);
 
-    die("Please set run name (--DBSUFFIX) variable using command line.\n");
-}
-
-# locating local config
-# Convert any input for DBSUFFIX to lower case.
-$opts{"DBSUFFIX"} = lc( $opts{"DBSUFFIX"} );
-my $config_file = "$run_dir/" . $opts{'DBSUFFIX'} . ".vs.cnf";
-
-# set variables from configs
-my %conf_vars = get_config( $opts{'DBSUFFIX'}, $run_dir );
-for my $k ( keys %conf_vars ) {
-    $opts{$k} = $conf_vars{$k}
-        if ( !exists $opts{$k} );
+# Initialize a reference set db if --reference was given, but not --dbsuffix
+if (!exists $opts{'DBSUFFIX'} && exists $opts{'REFERENCE'} ) {
+    print "\nPreparing reference set $opts{'REFERENCE'}...\n";
+    my $dbh = get_ref_dbh( $opts{'REFERENCE'}, { redo => $opts{'REDO_REFDB'} } );
+    die "Error importing reference set\n" unless $dbh;
+    exit;
 }
 
 # Print a nicely formatted table with all stats if "STATS" flag is given
-if ( exists $opts{STATS} ) {
+if (exists $opts{'STATS'}) {
+    # add a check here for database before trying to retrieve it?
     my $dbh = get_dbh();
     my $stat_sth = $dbh->prepare(qq{SELECT * FROM stats WHERE id = 1});
-    $stat_sth->execute;
-    my @stat_cols = $stat_sth->{NAME}->@*;
+    $stat_sth->execute();
+    my @stat_cols = $stat_sth->{'NAME'}->@*;
     my $min_width = max(map { length($_) } @stat_cols);
     my %run_stats = $stat_sth->fetchrow_hashref()->%*;
 
@@ -179,70 +160,57 @@ if ( exists $opts{STATS} ) {
     exit;
 }
 
-# Die if no starting step is supplied
-die "$HELPSTRING\n" unless @ARGV;
+# Make sure all the configuration options are safe for running
+validate_config();
 
-# Send config back to vutil lib and validate, with CLI options taking precedent.
-set_config(%opts);
+# Write out a terse config file to output directory
+print_config();
 
-# write out the config file
-#   no..... why would you do this except to initialize a local copy?
-#   you don't want this if one already exists.
-# print_config($run_dir);
-
-# print Dumper(\%opts);
-# print Dumper(@ARGV);
-
-my $STEP = shift;
-my $STEPEND = -1;
-if (   (@ARGV)
-    && ( $ARGV[0] =~ /^\d+?$/ )
-    && $ARGV[0] >= 0
-    && $ARGV[0] <= 99 )
-{
-    $STEPEND = shift;
-    if ( $STEPEND > $STEP ) { $DOALLSTEPS = 1; }
-}
 
 my $timestart;
+
+# will be created at the output root by the pipeline, ex: "/bfdisk/vntr_$DBSUFFIX";
+my $output_folder = "$opts{OUTPUT_ROOT}/vntr_$opts{DBSUFFIX}";    # DO NOT CHANGE, this
+
+# this is where TRF output will go converted to leb36 format
+my $read_profiles_folder = "$output_folder/data_out/";
+
+# this is where renumbered and non-cyclicly redundant leb36 files will go
+my $read_profiles_folder_clean = "$output_folder/data_out_clean/";
+
+# this is where edges are calculated
+my $edges_folder = "$opts{TMPDIR}/vntr_$opts{DBSUFFIX}/edges/";
+
 my $DBNAME     = "VNTRPIPE_$opts{DBSUFFIX}";
 my $HTTPSERVER = "$opts{SERVER}/vntrview";
+
 
 # clustering parameters (only cutoffs, other nonessantial paramters are in run_proclu.pl
 my $PROCLU_EXECUTABLE = "psearch.exe";
 my $CLUST_PARAMS      = " 88 ";
 my $MINPROFSCORE      = .85;
 
-my $output_folder
-    = "$opts{OUTPUT_ROOT}/vntr_$opts{DBSUFFIX}";    # DO NOT CHANGE, this
+# TRF options
+my $MATCH    = 2;
+my $MISMATCH = 5;
+my $INDEL    = 7;
+my $MIN_PERIOD_REQUIRED = 7;    # anything with pattern less then this is discarded
 
-# will be created at the output root by the pipeline, ex: "/bfdisk/vntr_$DBSUFFIX";
-
-# this is where TRF output will go converted to leb36 format
-my $read_profiles_folder = "$output_folder/data_out/";
-
-# this is where renumbered and cyclicly removed reundancy leb36 files will go
-my $read_profiles_folder_clean = "$output_folder/data_out_clean/";
-
-# this is where edges are calculated
-my $edges_folder = "$opts{TMPDIR}/vntr_$opts{DBSUFFIX}/edges/";
-
+my $TRF_EXECUTABLE = '@TRFBin@';
 my $TRF_PARAM
-    = "'$TRF_EXE' - $MATCH $MISMATCH $INDEL 80 10 50 2000 -d -h -ngs";
+    = "./$TRF_EXECUTABLE - $MATCH $MISMATCH $INDEL 80 10 50 2000 -d -h -ngs";
+
 my $TRF2PROCLU_EXE = 'trf2proclu-ngs.exe';
 my $TRF2PROCLU_PARAM
-    = "'./$TRF2PROCLU_EXE' -m $MATCH -s $MISMATCH -i $INDEL -p $MIN_PERIOD_REQUIRED -l $opts{MIN_FLANK_REQUIRED}";
-
-die("Please set doallsteps (DOALLSTEPS) variable.\n") unless ($DOALLSTEPS >= 0);
+    = "./$TRF2PROCLU_EXE -m $MATCH -s $MISMATCH -i $INDEL -p $MIN_PERIOD_REQUIRED -l $opts{MIN_FLANK_REQUIRED}";
 
 # verify executables
 my @executables = (
-    $install_dir, $TRF_EXECUTABLE, $TRF2PROCLU_EXE, "redund.exe", 
+    $install_dir, $TRF_EXECUTABLE, $TRF2PROCLU_EXE, $PROCLU_EXECUTABLE, "redund.exe",
     "flankalign.exe", "refflankalign.exe", "pcr_dup.exe", "join_clusters.exe");
 
 for my $exec (@executables) {
-    die("'$exec' not found!") unless (-e $exec);
-    die("'$exec' not executable!") unless (-x $exec);
+    die("'$exec' not executable!") unless (-e $exec and -x _);
 }
 
 ################################################################
@@ -290,9 +258,8 @@ sub ClearError {
 
     if (@_) {
         my $to = int shift;
-        print "\nClearError: making next step: $to.\n\n";
-        my $set_step = min( $to, 19 );
-        $set_step = max( $to, 0 );
+        print "ClearError: making next step: $to.\n\n";
+        my $set_step = min(max( $to, 0), 19 );
         my %clear_stats = map { $_ => undef } @stats[ $set_step .. 19 ];
         set_statistics( \%clear_stats );
 
@@ -360,18 +327,31 @@ sub GetNextStep {
 
 ####################################
 
+# set to 0 to do one step at a time (recommended for test run), 1 to run though all steps
+#(THIS IS OTIONAL AS SPECIFYING END STEP IS POSSIBLE)
+my $DOALLSTEPS = 0;
+my $STEP = shift;
+my $STEPEND = -1;
+if (   (@ARGV)
+    && ( $ARGV[0] =~ /^\d+?$/ )
+    && $ARGV[0] >= 0
+    && $ARGV[0] <= 99 )
+{
+    $STEPEND = shift;
+    if ( $STEPEND > $STEP ) { $DOALLSTEPS = 1; }
+}
+
 # pipeline error checking
 
 if ( $STEP != 0 ) {
 
     # clear error?
     if ( $STEP == 100 ) {
-
-        if   ( $STEPEND >= 0 && $STEPEND <= 19 ) { ClearError($STEPEND); }
-        else                                     { ClearError(); }
+        if ($STEPEND >= 0 && $STEPEND <= 19) { ClearError($STEPEND);}
+        else                                 { ClearError();}
 
         warn "Pipeline error cleared!\n";
-        exit 0;
+        exit;
     }
 
     my $err_hash = GetError();
