@@ -10,26 +10,20 @@
 use strict;
 use warnings;
 use Cwd;
-
 use FindBin;
 use File::Basename;
-
 use List::Util qw[min max];
-
 use lib "$FindBin::RealBin/lib";    # must be same as install dir!
 
 use vutil qw( get_config get_ref_dbh set_statistics get_statistics );
 
 my $argc = @ARGV;
-if ( $argc < 4 ) {
-    die
-        "Usage: setdbstats.pl reads_profiles_folder reads_profile_folder_clean dbsuffix run_dir\n";
-}
+die "Usage: setdbstats.pl expects 3 arguments.\n"
+    unless $argc >= 3;
 
-my $readpf   = $ARGV[0];
-my $rpfc     = $ARGV[1];
-my $DBSUFFIX = $ARGV[2];
-my $run_dir  = $ARGV[3];
+my $readpf   = $ARGV[0]; # reads_profiles_folder
+my $rpfc     = $ARGV[1]; # reads_profile_folder_clean
+my $cnf      = $ARGV[2]; # config_file
 
 ####################################
 
@@ -38,8 +32,8 @@ my $exstring;
 my $input;
 my $rc;
 
-my %run_conf = get_config( $DBSUFFIX, $run_dir );
-my $dbh = get_ref_dbh($run_conf{REFERENCE}, { readonly => 1 } );
+my %run_conf = get_config("CONFIG", $cnf);
+my $dbh = get_ref_dbh($run_conf{'REFERENCE'}, { readonly => 1 } );
 
 ( $stats{NUMBER_REF_TRS} )
     = $dbh->selectrow_array(q{SELECT COUNT(*) FROM fasta_ref_reps});

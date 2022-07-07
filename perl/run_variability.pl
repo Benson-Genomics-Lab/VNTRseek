@@ -23,28 +23,26 @@ sub nowhitespace($) {
     return $string;
 }
 
-my $updatedClustersCount = 0;
-my $updatedRefsCount     = 0;
-
-my $curdir = getcwd;
-
-my $argc = @ARGV;
-if ( $argc < 6 ) {
-    die
-        "Usage: run_variability.pl inputfile  mapdir dbname run_dir minflank tempdir\n";
-}
-
-my $inputfile          = $ARGV[0];
-my $mapdir             = $ARGV[1];
-my $DBSUFFIX           = $ARGV[2];
-my $run_dir            = $ARGV[3];
-my $MIN_FLANK_REQUIRED = $ARGV[4];
-my $TEMPDIR            = $ARGV[5];
 
 warn strftime( "\n\nstart: %F %T\n\n", localtime );
-my %run_conf = get_config( $DBSUFFIX, $run_dir );
-my $dbh      = get_dbh()
+
+my $argc = @ARGV;
+die "Usage: run_variability.pl expects 5 arguments.\n"
+    unless $argc >= 5;
+
+my $curdir             = getcwd();
+my $inputfile          = $ARGV[0];
+my $mapdir             = $ARGV[1];
+my $cnf                = $ARGV[2];
+my $MIN_FLANK_REQUIRED = $ARGV[3];
+my $TEMPDIR            = $ARGV[4];
+
+my %run_conf = get_config("CONFIG", $cnf);
+my $dbh = get_dbh()
     or die "Could not connect to database: $DBI::errstr";
+
+my $updatedClustersCount = 0;
+my $updatedRefsCount     = 0;
 
 my ( $sth, $sth1, $sth6, $sth7, $sth8, $query );
 my $TEMPFILE;
@@ -214,7 +212,7 @@ while (<$fh>) {
 
         $REFHASH{$refid} = 1;
 
-        warn "\n\n$refid | $readid \n";
+        # warn "\n\n$refid | $readid \n"; creates over 10 million lines in the output!
 
         if ( $readid != $readidold ) {
             $READVECTOR{$readid} = ();

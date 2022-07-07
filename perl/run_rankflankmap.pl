@@ -18,8 +18,6 @@ use lib "$FindBin::RealBin/lib";
 use vutil
     qw(get_config get_dbh set_statistics get_trunc_query gen_exec_array_cb vs_db_insert);
 
-my $updatedClustersCount = 0;
-my $updatedRefsCount     = 0;
 
 sub nowhitespace($) {
     my $string = shift;
@@ -29,27 +27,24 @@ sub nowhitespace($) {
 
 warn strftime( "\n\nstart: %F %T\n\n", localtime );
 
-my $curdir = getcwd;
 
 my $argc = @ARGV;
-if ( $argc < 5 ) {
-    die
-        "Usage: run_rankflankmap.pl inputfile  mapdir tmpdir dbsuffix run_dir\n";
-}
+die "Usage: run_rankflankmap.pl expects 4 arguments.\n"
+    unless $argc >= 4;
 
+my $curdir    = getcwd();
 my $inputfile = $ARGV[0];
 my $mapdir    = $ARGV[1];
 my $tmp       = $ARGV[2];
-my $DBSUFFIX  = $ARGV[3];
-my $run_dir   = $ARGV[4];
+my $cnf       = $ARGV[3];
 
-# set these mysql credentials in vs.cnf (in installation directory)
-my %run_conf = get_config( $DBSUFFIX, $run_dir );
-
-my $clusters_processed = 0;
-
+my %run_conf = get_config("CONFIG", $cnf);
 my $dbh = get_dbh()
     or die "Could not connect to database: $DBI::errstr";
+
+my $clusters_processed   = 0;
+my $updatedClustersCount = 0;
+my $updatedRefsCount     = 0;
 
 my $sth;
 my $sth1;

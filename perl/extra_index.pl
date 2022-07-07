@@ -13,28 +13,25 @@ use FindBin;
 use lib "$FindBin::RealBin/lib";
 use vutil qw(trim get_config get_dbh set_statistics get_trunc_query);
 
-my $FASTA = 1;
+# Unused
+#my $FASTA = 1;
 
 warn strftime( "\n\nstart: %F %T\n\n", localtime );
 
 my $argc = @ARGV;
+die "Usage: extra_index.pl expects 2 arguments.\n"
+    unless $argc >= 2;
 
-if ( $argc < 3 ) { die "Usage: extra_index.pl expects 3 arguments!\n"; }
+my $curdir = getcwd();
+my $folder = $ARGV[0];
+my $cnf    = $ARGV[1];
 
-my $curdir = getcwd;
-
-my $folder   = $ARGV[0];
-my $DBSUFFIX = $ARGV[1];
-my $run_dir  = $ARGV[2];
-
-# set these mysql credentials in vs.cnf (in installation directory)
-my %run_conf = get_config( $DBSUFFIX, $run_dir );
-my $dbh      = get_dbh()
+my %run_conf = get_config("CONFIG", $cnf);
+my $dbh = get_dbh()
     or die "Could not connect to database: $DBI::errstr";
 
 # create folder
-my $exstring = "rm -rf $folder";
-system($exstring);
+system("rm -rf $folder");
 mkdir($folder);
 
 my $sth;

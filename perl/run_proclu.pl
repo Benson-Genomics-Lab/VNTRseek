@@ -14,22 +14,20 @@ use warnings;
 use Cwd;
 use POSIX qw(strftime);
 
-
-if (@ARGV<8) {
- print STDERR "\n\nrun_proclu.pl: NOT ENOUGH INPUT PARAMS!\n";
- exit 1;
-}
-
 warn strftime( "\n\nstart: %F %T\n\n", localtime );
 
-my $curdir =  getcwd;
-my $PROCLU = "$curdir/$ARGV[5]";
-my $tgz_dir = $ARGV[1];
-my $reffolder = $ARGV[2];
-my $params_in = $ARGV[3];
-my $cpucount = $ARGV[4];
-my $maxerror = $ARGV[6];
-my $maxflanconsid = $ARGV[7];
+die "Useage: run_proclu.pl expects 8 arguments.\n"
+    unless scalar @ARGV >= 8;
+
+my $curdir           = getcwd();
+my $files_to_process = $ARGV[0]; # number of files to process in one batch
+my $tgz_dir          = $ARGV[1];
+my $reffolder        = $ARGV[2];
+my $params_in        = $ARGV[3];
+my $cpucount         = $ARGV[4];
+my $PROCLU           = "$curdir/$ARGV[5]";
+my $maxerror         = $ARGV[6];
+my $maxflanconsid    = $ARGV[7];
 
 # with dust filter (would be somewhat faster but less results)
 #my $PROCLU_PARAM = "$curdir/eucledian.dst $curdir/eucledian.dst $params_in -p \"(0.70,0.30)\" -d -s $reffolder/reference.leb36";
@@ -42,8 +40,6 @@ my $maxflanconsid = $ARGV[7];
 my $PROCLU_PARAM_START = "$reffolder/reference.leb36";
 my $PROCLU_PARAM_END   = "$curdir/eucledian.dst $params_in";
 
-
-my $files_to_process = $ARGV[0];	# number of files to process in one batch
 my $files_processed = 0;	# files processed
 my %p; # associates forked pids with output pipe pids
 
@@ -55,7 +51,7 @@ opendir(DIR, $tgz_dir);
 my @tarballs = grep(/\.(?:leb36)$/, readdir(DIR));
 closedir(DIR);
 my $tarball_count = @tarballs;
-print STDERR "$tarball_count  supported files found in $tgz_dir\n";
+print STDERR "$tarball_count supported files found in $tgz_dir\n";
 die "Exiting\n" if $tarball_count == 0;
 $files_to_process = $tarball_count if $files_to_process > $tarball_count;
 
@@ -134,60 +130,49 @@ warn strftime( "\n\nend: %F %T\n\n", localtime );
 ############################ Procedures ###############################################################
 
 sub fork_proclu {
-        if ($files_processed >= $tarball_count) {
-                return 0;
+    if ($files_processed >= $tarball_count) {
+            return 0;
+    }
+
+    # this is meaningless, lock will just be memory duplicated
+    # wait for shared variables to unlock
+    while ($MYLOCK) { }
+
+    # lock shared vars - no such thing
+    $MYLOCK = 1;
+
+    # use a predefined number of files
+    my $until = $files_processed + $files_to_process - 1;
+    $until = $tarball_count - 1 if $until > ($tarball_count - 1);
+    my @file_slice = @tarballs[($files_processed)..($until)];
+    my $file_slice_count = @file_slice;
+    $files_processed += $file_slice_count;
+    my $proclu_string;
+
+    # unlock shared vars - still no such thing
+    $MYLOCK = 0;
+
+    defined(my $pid = fork)
+        or die "Unable to fork: $!\n";
+
+    # parent
+    if ($pid != 0) { return $pid;}
+    
+    # child
+    foreach (@file_slice) {
+        $proclu_string = "$PROCLU $PROCLU_PARAM_START $_ $PROCLU_PARAM_END"
+                         . "$maxerror $maxflanconsid 2>${_}.proclu_log";
+        system($proclu_string);
+
+        if ( $? == -1 ) { die "command failed: $!\n"; }
+        else {
+            my $rc = ($? >> 8);
+            if ( 0 != $rc ) { print "proclu returned $rc ( $proclu_string  )!"; exit($rc); }
         }
+    }
 
-	# wait for shared variables to unlock
-	while ($MYLOCK) { }
-
-	# lock shared vars
-	$MYLOCK = 1;
-
-	# use a predefined number of files
-        my $until = $files_processed + $files_to_process - 1;
-        $until = $tarball_count - 1 if $until > ($tarball_count - 1);
-        print STDERR 'Processing files '. ($files_processed + 1) . ' to '. ($until + 1) . "\n";
-        #my $output_prefix = "$root/$files_processed-$until";
-        my @file_slice = @tarballs[($files_processed)..($until)];
-        my $file_slice_count = @file_slice;
-        $files_processed += $file_slice_count;
-	my $proclu_string;
-
-	# unlock shared vars
-	$MYLOCK = 0;
-
-        defined(my $pid = fork)
-                or die "Unable to fork: $!\n";
-
-	# child
-        if ($pid == 0) {
-
- 		foreach (@file_slice) {
-		  #print STDERR "\t" . $_ . "\n";
-		
-		  $proclu_string = $PROCLU . " " . $PROCLU_PARAM_START . " " . $_ . " " . $PROCLU_PARAM_END . " "  . $maxerror  . " $maxflanconsid  " . " 2>" . $_ . ".proclu_log";
-		  print STDERR $proclu_string;
-		  system($proclu_string);
-
-                  if ( $? == -1 ) { die "command failed: $!\n"; }
-                  else {
-                    my $rc = ($? >> 8);
-                    if ( 0 != $rc ) { print "proclu returned $rc ( $proclu_string  )!"; exit($rc); }
-                  }
-
-		}
-		#print STDERR "\n";
-
-  		# child must never return
-	        exit 0;
-
-	# parent
-	} else {
-		return $pid;
-	}
-
- return 0;
+    # child must never return
+    exit 0;
 }
 
 

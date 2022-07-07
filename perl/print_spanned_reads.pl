@@ -54,25 +54,20 @@ sub dummyquals($) {
 }
 
 my $argc = @ARGV;
-
-if ( $argc < 4 ) {
-    die
-        "Usage: print_spanned_reads.pl dbsuffix run_dir indexfolder fastafolder\n";
-}
+die "Usage: print_spanned_reads.pl expects 3 arguments.\n"
+    unless $argc >= 3;
 
 my $curdir      = getcwd;
-my $DBSUFFIX    = $ARGV[0];
-my $run_dir     = $ARGV[1];
-my $indexfolder = $ARGV[2];
-my $fastafolder = $ARGV[3];
+my $cnf         = $ARGV[0];
+my $indexfolder = $ARGV[1];
+my $fastafolder = $ARGV[2];
 
-my %run_conf = get_config( $DBSUFFIX, $run_dir );
-
-my $totalReads = 0;
-
+my %run_conf = get_config("CONFIG", $cnf);
 my $dbh = get_dbh()
     or die "Could not connect to database: $DBI::errstr";
+
 my %HEADHASH = ();
+my $totalReads = 0;
 
 print STDERR
     "\nreading index file and storing relevant entries in database..."

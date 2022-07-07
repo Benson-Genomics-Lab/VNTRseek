@@ -29,23 +29,19 @@ final reports and VCF files
 
 # Argument parsing & set up
 my $argc = @ARGV;
+die "Usage: updaterefs.pl expects 7 arguments.\n"
+    unless $argc >= 7;
 
-if ( $argc < 7 ) {
-    die
-        "Usage: updaterefs.pl read_profiles_folder read_profiles_folder_clean dbname run_dir file_representative latexfile VERSION\n";
-}
+my $curdir        = getcwd();
+my $readpf        = $ARGV[0]; # read_profiles_folder
+my $rpfc          = $ARGV[1]; # read_profiles_folder_clean
+my $DBSUFFIX      = $ARGV[2]; # dbname
+my $cnf           = $ARGV[3]; # config_file
+my $filerep       = $ARGV[4]; # file_representative
+my $result_prefix = $ARGV[5]; # latexfile
+my $VERSION       = $ARGV[6]; # VERSION
 
-my $curdir        = getcwd;
-my $readpf        = $ARGV[0];
-my $rpfc          = $ARGV[1];
-my $DBSUFFIX      = $ARGV[2];
-my $run_dir       = $ARGV[3];
-my $filerep       = $ARGV[4];
-my $result_prefix = $ARGV[5];
-my $VERSION       = $ARGV[6];
-
-# set these mysql credentials in vs.cnf (in installation directory)
-my %run_conf = get_config( $DBSUFFIX, $run_dir );
+my %run_conf = get_config("CONFIG", $cnf);
 my ( $HTTPSERVER, $MIN_SUPPORT_REQUIRED, $TEMPDIR )
     = @run_conf{qw(SERVER MIN_SUPPORT_REQUIRED TMPDIR)};
 
@@ -2248,11 +2244,11 @@ $dbh->do("PRAGMA temp_store = 0");
 $dbh->do("PRAGMA main.optimize");
 $dbh->disconnect;
 
-#warn "Producing output LaTeX file...\n";
-#print_latex($ReadTRsSupport);
+warn "Producing output LaTeX file...\n";
+print_latex($ReadTRsSupport);
 
-#warn "Producing distribution file...\n";
-#print_distr();
+warn "Producing distribution file...\n";
+print_distr();
 
 # Print VCF
 warn "Producing VCF...\n";

@@ -22,19 +22,13 @@ use Data::Dumper;
 
 my $RECORDS_PER_INFILE_INSERT = 100000;
 
-my $timestart;
-
-my $count;
 
 ################ main ####################
 warn strftime( "\n\nstart: %F %T\n\n", localtime );
 
 my $argc = @ARGV;
-
-if ( $argc < 10 ) {
-    die
-        "Usage: insert_reads.pl  clusterfile indexfolder fastafolder rotatedfolder rotatedreffile strip_454_keytags dbname msdir tempdir ispairedreads\n";
-}
+die "Usage: insert_reads.pl expects 9 arguments\n"
+    unless $argc >= 9;
 
 my $curdir          = getcwd;
 my $clusterfile     = $ARGV[0];
@@ -42,27 +36,23 @@ my $indexfolder     = $ARGV[1];
 my $fastafolder     = $ARGV[2];
 my $rotatedfolder   = $ARGV[3];
 my $rotatedreffile  = $ARGV[4];
+my $cnf             = $ARGV[6];
 my $strip454        = $ARGV[5];
-my $DBSUFFIX        = $ARGV[6];
-my $run_dir         = $ARGV[7];
-my $TEMPDIR         = $ARGV[8];
-my $IS_PAIRED_READS = $ARGV[9];
+my $TEMPDIR         = $ARGV[7];
+my $IS_PAIRED_READS = $ARGV[8];
 
-# set these mysql credentials in vs.cnf (in installation directory)
-my %run_conf = get_config( $DBSUFFIX, $run_dir );
-
-my $totalReads = 0;
-
-# TODO for all files needing this function, maybe run get_config first
-# to eliminate need for second arg
+my %run_conf = get_config("CONFIG", $cnf);
 my $dbh = get_dbh()
     or die "Could not connect to database: $DBI::errstr";
+
 my %RHASH    = ();
 my %SHASH    = ();
 my %HEADHASH = ();
+my $count;
 my $negcount = 0;
+my $totalReads = 0;
 
-$timestart = time();
+my $timestart = time();
 
 system("cp $clusterfile $rotatedfolder/allwithdups.clusters");
 
@@ -166,7 +156,7 @@ foreach my $ifile (@indexfiles) {
 
     open( $fh2, "<", "$indexfolder/$lfile" ) or die $!;
 
-    print STDERR "\n" . $ifile . "-" . $lfile . "...";
+    #print STDERR "\n" . $ifile . "-" . $lfile . "...";
 
     my $line1 = read_file_line($fh1);
     my $line2 = read_file_line($fh2);
@@ -244,7 +234,7 @@ foreach my $ifile (@indexfiles) {
     }
     close($fh1);
     close($fh2);
-    print STDERR $i;
+    #print STDERR $i;
 
 }
 
@@ -349,7 +339,7 @@ for my $read_file (@readfiles) {
 
     close $r_fh;
     $files_processed++;
-    say STDERR " (processed: $processed)";
+    #print STDERR "(processed: $processed)\n";
 }
 
 # cleanup
@@ -394,7 +384,7 @@ else {
         . " entries, while input read files only have $inserted matching entries. Aborting!\n\n";
 }
 
-say STDERR "\n\nProcessing complete (insert_reads.pl).";
+print STDERR "\n\nProcessing complete (insert_reads.pl).\n";
 
 warn strftime( "\n\nend: %F %T\n\n", localtime );
 

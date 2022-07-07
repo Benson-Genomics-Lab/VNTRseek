@@ -25,30 +25,26 @@ sub nowhitespace($) {
 
 warn strftime( "\n\nstart: %F %T\n\n", localtime );
 
-my $curdir = getcwd;
-
 my $argc = @ARGV;
-if ( $argc < 4 ) {
-    die "Usage: run_flankcomp.pl inputfile dbname run_dir tempdir\n";
-}
+die "Usage: run_flankcomp.pl expects 4 arguments.\n"
+    unless $argc >= 4;
 
+my $curdir    = getcwd();
 my $inputfile = $ARGV[0];
 my $DBSUFFIX  = $ARGV[1];
-my $run_dir   = $ARGV[2];
+my $cnf       = $ARGV[2];
 my $TEMPDIR   = $ARGV[3];
 
 # get run config
-my %run_conf = get_config( $DBSUFFIX, $run_dir );
-
-my $clusters_processed = 0;
-my $totalRefReps       = 0;
-my $totalReadReps      = 0;
-
+my %run_conf = get_config("CONFIG", $cnf);
 my $read_dbh = get_dbh( { userefdb => 1, readonly => 1 } )
     or die "Could not connect to database for reading: $DBI::errstr";
 my $write_dbh = get_dbh()
     or die "Could not connect to database for writing: $DBI::errstr";
 
+my $clusters_processed = 0;
+my $totalRefReps       = 0;
+my $totalReadReps      = 0;
 my $sth;
 my $sth1;
 my $sth2;

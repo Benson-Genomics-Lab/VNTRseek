@@ -92,7 +92,8 @@ while ( my $reads = $seq_reader->get_reads() ) {
     # Child code
     $pm->finish( 0, { reads => 0 } ) unless $reads->%*;
     my $start_id = ( $split_index * $seq_reader->{reads_split} ) + 1;
-    warn "Queuing worker: $split_index, starting id: $start_id\n";
+    # Hundreds of useless output lines
+    # warn "Queuing worker: $split_index, starting id: $start_id\n";
     my $res = $seq_reader->run_trf(
         output_prefix => "$seq_reader->{output_dir}/$split_index",
         index         => $split_index,

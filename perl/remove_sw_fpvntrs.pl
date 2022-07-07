@@ -38,14 +38,12 @@ use lib "$FindBin::RealBin/lib";
 use vutil qw( get_config get_dbh );
 
 # Get input files
-die "Usage: $0 <dbsuffix> <db backend> [new reference set name]"
-    unless ( @ARGV && ( @ARGV <= 3 ) );
-my ( $dbsuffix, $backend, $refset_suffix ) = @ARGV;
-my $run_dir = getcwd();
+die "Usage: remove_sw_fpvntrs.pl <config_path> [new reference set name]"
+    unless scalar @ARGV >= 2;
+my ( $cnf, $refset_suffix ) = @ARGV;
 
 # Connect to DB
-my %run_conf = get_config( $dbsuffix, $run_dir );
-my ( $login, $pass, $host ) = @run_conf{qw(LOGIN PASS HOST)};
+my %run_conf = get_config("CONFIG", $cnf);
 my $dbh = get_dbh()
     or die "Could not connect to database: $DBI::errstr";
 
@@ -55,19 +53,16 @@ my $dbh = get_dbh()
 #       INNER JOIN fasta_reads on fasta_reads.sid=replnk.sid
 #   WHERE map.bbb = 1 ORDER BY reftrid,origintrid};
 
-if ( $backend eq "sqlite" ) {
-
-    # Works close enough to the MySQL function for our purposes.
-    $dbh->sqlite_create_function(
-        'SUBSTRING_INDEX',
-        3,
-        sub {
-            my ( $field, $delim, $idx ) = @_;
-            my @a = split /$delim/, $field;
-            return $a[$idx];
-        }
-    );
-}
+# Works close enough to the MySQL function for our purposes.
+$dbh->sqlite_create_function(
+    'SUBSTRING_INDEX',
+    3,
+    sub {
+        my ( $field, $delim, $idx ) = @_;
+        my @a = split /$delim/, $field;
+        return $a[$idx];
+    }
+);
 
 # Retrieve from the database the list of all reads mapping to a reftr called as a VNTR with at least one spanning read
 my $vntr_reads_mapped_query = q{

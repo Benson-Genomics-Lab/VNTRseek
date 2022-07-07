@@ -14,31 +14,27 @@ use vutil qw(get_config get_dbh set_statistics get_trunc_query);
 
 warn strftime("\n\nstart: %F %T\n\n", localtime);
 
-if ((scalar @ARGV) < 8) {
-    die "Usage: run_edges.pl reference_file edges_folder dbsuffix run_dir" .
-        " MINPROFSCORE NPROCESSORS PSEARCH TMPDIR\n";
-}
+die "Usage: run_edges.pl expects 7 arguments.\n"
+    unless scalar @ARGV >= 7;
 
-# arguments and preset "static" variables
-
-my $curdir = getcwd();
-my $PROCLU_PARAM = "$curdir/eucledian.dst 70 0 0";
-my $files_to_process = 1000;
-
+# unpack arguments
+my $curdir       = getcwd();
 my $inputfile    = $ARGV[0];
 my $folder       = $ARGV[1];
-my $DBSUFFIX     = $ARGV[2];
-my $run_dir      = $ARGV[3];
-my $MINPROFSCORE = $ARGV[4];
-my $cpucount     = $ARGV[5];
-my $PROCLU       = "$curdir/$ARGV[6]";
-my $tmp          = $ARGV[7];
+my $cnf          = $ARGV[2];
+my $MINPROFSCORE = $ARGV[3];
+my $cpucount     = $ARGV[4];
+my $PROCLU       = "$curdir/$ARGV[5]";
+my $tmp          = $ARGV[6];
 
 
-# load config and prep SQL driver
-my %run_conf = get_config($DBSUFFIX, $run_dir);
+# load config and prep SQL driver and set constants
+my %run_conf = get_config("CONFIG", $cnf);
 my $dbh = get_dbh()
     or die "Could not connect to database: $DBI::errstr";
+
+my $PROCLU_PARAM = "$curdir/eucledian.dst 70 0 0";
+my $files_to_process = 1000;
 
 $dbh->do("PRAGMA foreign_keys = OFF");
 $dbh->{AutoCommit} = 0;
@@ -122,7 +118,7 @@ chdir($folder);             # enter it
 my $clusters_processed = 0;
 my $coconut = -1;
 my %p;
-for (my $i = 0; $i < $cpucount - 1; $i++) { $p{fork_proclu()} = 1;}
+for (my $i = 0; $i < $cpucount; $i++) { $p{fork_proclu()} = 1;}
 
 # wait for processes to finish and then fork new ones
 while ((my $pid = wait) != -1) {

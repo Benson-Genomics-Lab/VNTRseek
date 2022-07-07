@@ -10,7 +10,9 @@
 #       and K is the end step (19 is the last step)
 #
 # example:
-#  vntrseek 0 19 --dbsuffix run1 --server orca.bu.edu --nprocesses 8 --html_dir /var/www/html/vntrview --fasta_dir /bfdisk/watsontest --output_root /smdisk --tmpdir /tmp &
+#  vntrseek 0 19 --dbsuffix run1 --server orca.bu.edu --nprocesses 8
+#    --html_dir /var/www/html/vntrview --fasta_dir /bfdisk/watsontest
+#    --output_root /smdisk --tmpdir /tmp &
 #
 # special commands:
 #  vntrseek 100 --dbsuffix dbsuffix
@@ -43,7 +45,8 @@ use Getopt::Long qw(GetOptionsFromArray);
 use List::Util qw(min max);
 use lib ( "$FindBin::RealBin/lib", "$FindBin::RealBin/local/lib/perl5" );
 use vutil
-    qw(get_config validate_config set_statistics get_statistics write_sqlite get_dbh get_ref_dbh set_datetime print_config create_blank_file run_redund trim);
+    qw(get_config validate_config set_statistics get_statistics write_sqlite
+       get_dbh get_ref_dbh set_datetime print_config create_blank_file run_redund trim);
 
 my $VERSION = '@VNTRVer@';
 my $install_dir = "$FindBin::RealBin"; # where the pipeline is installed
@@ -57,7 +60,13 @@ die("Cannot access install directory ($install_dir).\n")
     unless chdir("$install_dir");
 
 my $HELPSTRING
-    = "\nUsage: $0 --DBSUFFIX <run_name> <start step> <end step> To tell the master script what step to execute. The first step is 0, last step is 19."
+    = "\nUsage: $0 <start step> <end step> [options]\n\n"
+    . "\tThe first step is 0, last step is 19.\n"
+    . "\tAt least --DBSUFFIX and --INPUT_DIR must be provided,\n"
+    . "\t  or a valid --CONFIG file specifying them.\n"
+    . "\t  Use --GEN_CONFIG to generate a default file.\n\n"
+    . "\tA config can be provided with command line arguments,\n"
+    . "\t  in which case the command line values will take precedence.\n"
     . "\n\nOPTIONS:\n\n"
     . "\t--HELP                        prints this help message\n"
     . "\t--DBSUFFIX                    prefix for database name (such as the name of your analysis)\n"
@@ -74,20 +83,22 @@ my $HELPSTRING
     . "\t--READ_LENGTH                 length of fasta reads\n"
     . "\t--IS_PAIRED_READS             data is paired reads, 0/1 (default 1)\n"
     . "\t--STRIP_454_KEYTAGS           for 454 platform, strip leading 'TCAG', 0/1 (default 0)\n"
-    . "\t--KEEPPCRDUPS                 if set to 0, PCR duplicates will be looked for and removed. (default: PCR duplicates are not removed)\n"
+    . "\t--KEEPPCRDUPS                 whether to find and remove PCR duplicates. (default: 1, duplicates are kept)\n"
     . "\n"
     . "\t--MIN_FLANK_REQUIRED          minimum required flank on both sides for a read TR to be considered (default 10)\n"
-    . "\t--MAX_FLANK_CONSIDERED        maximum flank length used in flank alignments, set to big number to use full flank (default 50)\n"
+    . "\t--MAX_FLANK_CONSIDERED        maximum flank length used in flank alignments, set high to use full flank (default 50)\n"
     . "\t--MIN_SUPPORT_REQUIRED        minimum number of mapped reads which agree on copy number to call an allele (default 2)\n"
     . "\n"
-    . "\t--NPROCESSES                  number of processors on your system\n"
+    . "\t--NPROCESSES                  number of processors to use on your system (default 2)\n"
     . "\t--CONFIG                      path to file with any of the above options. Command line option only.\n"
     . "\t--GEN_CONFIG                  set with a path to generate a clean config. Command line option only.\n"
     . "\t--CLEAN                       force reinitialization of the run database. Command line option only.\n"
     . "\t--STATS                       print out a simple table of run statistics. Command line option only.\n"
     . "\t\n\nADDITIONAL USAGE:\n\n"
-    . "\t$0 100                       clear error\n"
-    . "\t$0 100 N                     clear error and set NextRunStep to N (0-19, this is only when running on a cluster using the advanced cluster script that checks for NextRunStep)\n"
+    . "\t$0 100                        clear error\n"
+    . "\t$0 100 N                      clear error and set NextRunStep to N (0-19)"
+    . "\t                                This is only when running on a cluster using the"
+    . "\t                                advanced cluster script that checks for NextRunStep)\n"
     . "\t$0 --REFERENCE </path/to/reference/basename> [--REDO_REFDB] to initialize a reference set.\n"
     . "This only needs to be done once for a reference set. Supply --REDO_REFDB to force a recreation of the database.\n\n";
 
@@ -104,7 +115,8 @@ GetOptions(
     "OUTPUT_ROOT=s",          "TMPDIR=s",
     "REFERENCE=s",            "REFERENCE_INDIST_PRODUCE=i",
     "CLEAN",                  "STATS",
-    "READ_LENGTH=i",          "CONFIG=s"
+    "READ_LENGTH=i",          "CONFIG=s",
+    "GEN_CONFIG"
 );
 
 # Print help string if that's all they ask
@@ -161,10 +173,9 @@ if (exists $opts{'STATS'}) {
 }
 
 # Make sure all the configuration options are safe for running
+#   and write out a terse config file to output directory.
 validate_config();
-
-# Write out a terse config file to output directory
-print_config();
+my $config_file = print_config();
 
 
 my $timestart;
@@ -405,26 +416,23 @@ if ( $STEP == 0 ) {
 if ( $STEP == 1 ) {
     unlink glob "${read_profiles_folder}/*.clu";
 
-    warn
-        "\n\nExecuting step #$STEP (searching for tandem repeats in reads, producing profiles and sorting)...\n";
+    warn "\n\nExecuting step #$STEP (searching for tandem repeats in reads,"
+         . " producing profiles and sorting)...\n";
     my $extra_param  = ( $opts{STRIP_454_KEYTAGS} ) ? '-s' : '';
     my $extra_param2 = ( $opts{IS_PAIRED_READS} )   ? '-r' : '';
 
     $timestart = time();
-    my $trf_out = qx(
-        $install_dir/run_trf_ng.pl -t "$TRF_PARAM" -u "$TRF2PROCLU_PARAM" $extra_param $extra_param2 -p $opts{NPROCESSES} "$opts{INPUT_DIR}" "$read_profiles_folder"
-    );
+    my $exstring = "$install_dir/run_trf_ng.pl"
+                   . qq( -t "$TRF_PARAM")
+                   . qq( -u "$TRF2PROCLU_PARAM")
+                   . " $extra_param $extra_param2"
+                   . " -p $opts{NPROCESSES}"
+                   . qq( "$opts{INPUT_DIR}" "$read_profiles_folder");
+    my $trf_out = qx($exstring);
     if ( $? == -1 ) {
         SetError( $STEP, "command failed: $!", -1 );
         die "command failed: $!\n";
     }
-
-#elsif ($? & 127) {
-#    my $rc = ( $? & 127 );
-#    SetError( $STEP, "Died with signal $rc while running TRF and TRF2PROCLU", $rc );
-#    die sprintf("died with signal %d, %s coredump\n",
-#    $rc,  ($? & 128) ? 'with' : 'without');
-#}
     else {
         my $rc = ( $? >> 8 );
         if ( 0 != $rc ) {
@@ -566,8 +574,10 @@ if ( $STEP == 3 ) {
 
     warn "setting additional statistics...\n";
     system(
-        "./setdbstats.pl $read_profiles_folder $read_profiles_folder_clean $opts{DBSUFFIX} $run_dir"
-    );
+        "./setdbstats.pl",
+        "$read_profiles_folder",
+        "$read_profiles_folder_clean",
+        "$config_file");
     if ( $? == -1 ) {
         SetError( $STEP, "command failed: $!", -1 );
         die "command failed: $!\n";
@@ -818,9 +828,18 @@ if ( $STEP == 8 ) {
     print $tmp_rotindex $rotindex_str;
     close $tmp_rotindex;
 
-    my $exstring
-        = qq{./insert_reads.pl $read_profiles_folder_clean/all.clusters "$read_profiles_folder"  "$opts{INPUT_DIR}" "$read_profiles_folder_clean" "$reference_folder/reference.leb36.rotindex" $extra_param $opts{DBSUFFIX} "$run_dir" $opts{TMPDIR} $opts{IS_PAIRED_READS}};
-    system($exstring);
+    my $exstring = "./insert_reads.pl"
+    my @exargs = (
+        "$read_profiles_folder_clean/all.clusters",
+        "$read_profiles_folder",
+        "$opts{INPUT_DIR}",
+        "$read_profiles_folder_clean",
+        "$reference_folder/reference.leb36.rotindex",
+        "$extra_param",
+        "$config_file",
+        "$opts{TMPDIR}",
+        "$opts{IS_PAIRED_READS}");
+    system($exstring, @exargs);
     if ( $? == -1 ) {
         SetError( $STEP, "command failed: $!", -1 );
         die "command failed: $!\n";
@@ -847,8 +866,10 @@ if ( $STEP == 9 ) {
     $timestart = time();
     print STDERR
         "\n\nExecuting step #$STEP (outputting flanks inside each cluster)...";
-    my $exstring
-        = "./run_flankcomp.pl $read_profiles_folder_clean/allwithdups.clusters $opts{DBSUFFIX} $run_dir $opts{TMPDIR} > $read_profiles_folder_clean/allwithdups.flanks";
+    my $exstring = "./run_flankcomp.pl"
+        . " $read_profiles_folder_clean/allwithdups.clusters"
+        . " $opts{DBSUFFIX} $config_file $opts{TMPDIR}"
+        . " > $read_profiles_folder_clean/allwithdups.flanks";
     system($exstring);
     if ( $? == -1 ) {
         SetError( $STEP, "command failed: $!", -1 );
@@ -883,16 +904,17 @@ if ( $STEP == 10 ) {
 
     print STDERR "\n\nExecuting step #$STEP (aligning ref-read flanks)...";
 
-#my $exstring = "./flankalign.exe $read_profiles_folder_clean/out $read_profiles_folder_clean/result $read_profiles_folder_clean/allwithdups.flanks " . min( 8, int(0.4 * $opts{MIN_FLANK_REQUIRED} + .01)) . " $opts{MAX_FLANK_CONSIDERED} $opts{NPROCESSES} 15";
-
 # 0 for maxerror, means flankalign will pick maxerror based on individual flanklength
-    my $exstring
-        = "./flankalign.exe $read_profiles_folder_clean/out $read_profiles_folder_clean/result $read_profiles_folder_clean/allwithdups.flanks "
-        . 0
-        . " $opts{MAX_FLANK_CONSIDERED} $opts{NPROCESSES} 15";
-
-    print STDERR "$exstring\n";
-    system($exstring);
+    my $exstring = "./flankalign.exe"
+    my @exargs = (
+        "$read_profiles_folder_clean/out",
+        "$read_profiles_folder_clean/result",
+        "$read_profiles_folder_clean/allwithdups.flanks",
+        0,
+        "$opts{MAX_FLANK_CONSIDERED}",
+        "$opts{NPROCESSES}"
+        "15");
+    system($exstring, @exargs);
     if ( $? == -1 ) {
         SetError( $STEP, "command failed: $!", -1 );
         die "command failed: $!\n";
@@ -1073,9 +1095,13 @@ if ( $STEP == 12 ) {
 
     print STDERR
         "\n\nExecuting step #$STEP (inserting map and rankflank information into database.)";
-    my $exstring
-        = "./run_rankflankmap.pl $read_profiles_folder_clean/allwithdups.clusters $read_profiles_folder_clean/out $opts{TMPDIR} $opts{DBSUFFIX} $run_dir";
-    system($exstring);
+    my $exstring = "./run_rankflankmap.pl";
+    my @exargs = (
+        "$read_profiles_folder_clean/allwithdups.clusters",
+        "$read_profiles_folder_clean/out",
+        "$opts{TMPDIR}",
+        "$config_file");
+    system($exstring, @exargs);
     if ( $? == -1 ) {
         SetError( $STEP, "command failed: $!", -1 );
         die "command failed: $!\n";
@@ -1105,13 +1131,12 @@ if ( $STEP == 13 ) {
     $timestart = time();
     print STDERR "\n\nExecuting step #$STEP (calculating edges)...";
     my $exstring = "./run_edges.pl";
-    my @exargs   = (
+    my @exargs = (
         "$opts{REFERENCE}",   "$edges_folder",
-        "$opts{DBSUFFIX}",    "$run_dir",
+        "$config_file",
         "$MINPROFSCORE",      "$opts{NPROCESSES}",
-        "$PROCLU_EXECUTABLE", "$opts{TMPDIR}"
-    );
-    system( $exstring, @exargs );
+        "$PROCLU_EXECUTABLE", "$opts{TMPDIR}");
+    system($exstring, @exargs);
     if ( $? == -1 ) {
         SetError( $STEP, "command failed: $!", -1 );
         die "command failed: $!\n";
@@ -1124,8 +1149,7 @@ if ( $STEP == 13 ) {
         }
     }
 
-    # $exstring = qq(find "${edges_folder}" -type f -delete);
-    system(qq(find "${edges_folder}" -type f -delete));
+    rmdir $edges_folder;
 
     set_statistics( { TIME_EDGES => time() - $timestart } );
     set_datetime("DATE_EDGES");
@@ -1142,10 +1166,7 @@ if ( $STEP == 14 ) {
         "\n\nExecuting step #$STEP (generating .index files for pcr_dup)...";
 
     my $exstring = "./extra_index.pl";
-    my @exargs   = (
-        "$read_profiles_folder_clean/best", "$opts{DBSUFFIX}",
-        "$run_dir",                         "$opts{TMPDIR}"
-    );
+    my @exargs   = ("$read_profiles_folder_clean/best", "$config_file");
     system( $exstring, @exargs );
     if ( $? == -1 ) {
         SetError( $STEP, "command failed: $!", -1 );
@@ -1177,14 +1198,12 @@ if ( $STEP == 15 ) {
         warn "\nWarning: Not removing detected PCR duplicates\n";
     }
     my $exstring = "./pcr_dup.pl";
-    my @exargs   = (
+    my @exargs = (
         "$read_profiles_folder_clean/best", "$read_profiles_folder_clean",
-        "$opts{DBSUFFIX}",                  "$run_dir",
+        "$opts{DBSUFFIX}",                  "$config_file",
         "$opts{NPROCESSES}",                "$opts{TMPDIR}",
-        "$opts{KEEPPCRDUPS}"
-    );
-    warn "exargs: " . join( " ", @exargs ) . "\n";
-    system( $exstring, @exargs );
+        "$opts{KEEPPCRDUPS}");
+    system($exstring, @exargs);
     if ( $? == -1 ) {
         SetError( $STEP, "command failed: $!", -1 );
         die "command failed: $!\n";
@@ -1210,8 +1229,8 @@ if ( $STEP == 16 ) {
     $timestart = time();
     print STDERR "\n\nExecuting step #$STEP (removing mapped duplicates) ...";
 
-    my $exstring
-        = "./map_dup.pl $opts{DBSUFFIX} $run_dir $opts{TMPDIR} > $read_profiles_folder_clean/result/$opts{DBSUFFIX}.map_dup.txt";
+    my $exstring = "./map_dup.pl $config_file $opts{TMPDIR}"
+                   . " > $read_profiles_folder_clean/result/$opts{DBSUFFIX}.map_dup.txt";
     system($exstring);
     if ( $? == -1 ) {
         SetError( $STEP, "command failed: $!", -1 );
@@ -1237,9 +1256,14 @@ if ( $STEP == 17 ) {
 
     $timestart = time();
     print STDERR "\n\nExecuting step #$STEP (computing variability)...";
-    my $exstring
-        = "./run_variability.pl $read_profiles_folder_clean/allwithdups.clusters $read_profiles_folder_clean/out $opts{DBSUFFIX} $run_dir $opts{MIN_FLANK_REQUIRED} $opts{TMPDIR}";
-    system($exstring);
+    my $exstring = "./run_variability.pl"
+    my @exargs = (
+        "$read_profiles_folder_clean/allwithdups.clusters",
+        "$read_profiles_folder_clean/out",
+        "$config_file",
+        "$opts{MIN_FLANK_REQUIRED}",
+        "$opts{TMPDIR}");
+    system($exstring, @exargs);
     if ( $? == -1 ) {
         SetError( $STEP, "command failed: $!", -1 );
         die "command failed: $!\n";
@@ -1264,16 +1288,7 @@ if ( $STEP == 18 ) {
 
     $timestart = time();
 
-    print STDERR "\n\nSTEP #$STEP IS EMPTY!";
-
-#print STDERR "\n\nExecuting step #$STEP (computing variability - assembly required)...";
-#my $exstring = "./run_assemblyreq.pl $read_profiles_folder_clean/allwithdups.clusters $read_profiles_folder_clean/out $opts{DBSUFFIX} $MSDIR $opts{MIN_FLANK_REQUIRED} $opts{TMPDIR}";
-#system($exstring);
-#if ( $? == -1 ) { SetError($STEP,"command failed: $!",-1); die "command failed: $!\n"; }
-#else {
-#  my $rc = ($? >> 8);
-#  if ( 0 != $rc ) { SetError($STEP,"computing variability (assembly required) failed",$rc); die "command exited with value $rc"; }
-#}
+    print STDERR "\n\nStep #$STEP is empty.";
 
     set_statistics( { TIME_ASSEMBLYREQ => time() - $timestart } );
     set_datetime("DATE_ASSEMBLYREQ");
@@ -1295,10 +1310,10 @@ if ( $STEP == 19 ) {
         # executed)
         print STDERR "setting additional statistics...\n";
         system(
-            "./setdbstats.pl",             "$read_profiles_folder",
-            "$read_profiles_folder_clean", "$opts{DBSUFFIX}",
-            "$run_dir"
-        );
+            "./setdbstats.pl",
+            "$read_profiles_folder",
+            "$read_profiles_folder_clean",
+            "$config_file");
         if ( $? == -1 ) {
             SetError( $STEP, "command failed: $!", -1 );
             die "command failed: $!\n";
@@ -1313,18 +1328,16 @@ if ( $STEP == 19 ) {
     }
 
     # distribution, image and latex files
-    my $exstring = "perl";
-    my @exargs   = (
-        "./updaterefs.pl",
+    my $exstring = "./updaterefs.pl";
+    my @exargs = (
         "$read_profiles_folder",
         "$read_profiles_folder_clean",
         "$opts{DBSUFFIX}",
-        "$run_dir",
+        "$config_file",
         "$read_profiles_folder_clean/out/representatives.txt",
         "${read_profiles_folder_clean}/result/${DBNAME}",
-        "$VERSION"
-    );
-    system( @exargs );
+        "$VERSION");
+    system(@exstring, @exargs);
     if ( $? == -1 ) {
         SetError( $STEP, "command failed: $!", -1 );
         die "command failed: $!\n";

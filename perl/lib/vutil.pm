@@ -14,7 +14,7 @@ if ( $ENV{DEBUG} ) {
 
 use base 'Exporter';
 our @EXPORT_OK
-    = qw(trim read_config_file get_config set_config set_credentials get_dbh get_ref_dbh make_refseq_db load_refprofiles_db run_redund write_sqlite set_statistics get_statistics set_datetime print_config trim create_blank_file get_trunc_query sqlite_install_RC_function gen_exec_array_cb vs_db_insert);
+    = qw(trim read_config_file get_config validate_config set_credentials get_dbh get_ref_dbh make_refseq_db load_refprofiles_db run_redund write_sqlite set_statistics get_statistics set_datetime print_config trim create_blank_file get_trunc_query sqlite_install_RC_function gen_exec_array_cb vs_db_insert);
 
 # vutil.pm
 # author: Yevgeniy Gelfand, Yozen Hernandez
@@ -170,8 +170,8 @@ sub get_config {
     my %opts = read_config_file("$FindBin::RealBin/defaults.vs.cnf");
 
     # load local settings
-    if (exists $args{"CONFIG"}) {
-        my %local = read_config_file($args("CONFIG"));
+    if (exists $args{'CONFIG'} and $args{'CONFIG'}) {
+        my %local = read_config_file($args('CONFIG'));
         for my $key (keys %local) {
             $opts{$key} = $local{$key};
         }
@@ -197,6 +197,11 @@ sub get_config {
     # DELETEME While testing, this option is always sqlite.
     # In final version, this option will be gone completely.
     $opts{'BACKEND'} = 'sqlite';
+
+    # Since all of the sub-scripts are called in a subprocess
+    #   we consume a process before ever forking.
+    #   To avoid using more than advertised, we need to shave one off here.
+    $opts{'NPROCESSES'} -= 1;
 
     # keep a local copy of everything and send back the results
     %VSCNF_FILE = %opts;
@@ -262,8 +267,8 @@ sub validate_config {
 
 
     if ( $VSCNF_FILE{'NPROCESSES'} <= 0 ) {
-        $VSCNF_FILE{'NPROCESSES'} = 2;
-        warn("NPROCESSES not set. Using default of $VSCNF_FILE{'NPROCESSES'}.\n"
+        $VSCNF_FILE{'NPROCESSES'} = 2; # Intentional discrepancy, see get_config
+        warn("NPROCESSES not set. Using default of 3.\n" 
              . "NPROCESSES variable can be set on the command line or in the configuration file.\n");
     }
 
@@ -285,12 +290,23 @@ sub validate_config {
 
 ################################################################
 sub print_config {
-    my $output_folder = "$VSCNF_FILE{'OUTPUT_ROOT'}/vntr_$VSCNF_FILE{'DBSUFFIX'}"
+    my $output_folder = "$VSCNF_FILE{'OUTPUT_ROOT'}/vntr_$VSCNF_FILE{'DBSUFFIX'}";
     my $config_file = "$output_folder/" . $VSCNF_FILE{'DBSUFFIX'} . ".vs.cnf";
+    my $when = strftime("%c", localtime);
     open( my $config_fh, ">", $config_file )
-        or die "Cannot open '$config_file' for writing!\n"
+        or die "Cannot open '$config_file' for writing!\n";
 
     print $config_fh <<CNF;
+# VNTRseek complete configuration
+# $when
+# You can provide this with the --CONFIG
+#   option to reproduce the latest run.
+# This will always be generated here and
+#   overwritten to match the last configuration
+#   with this output location.
+# Use vntrseek --HELP for option descriptions.
+
+DBSUFFIX=$VSCNF_FILE{"DBSUFFIX"}
 INPUT_DIR=$VSCNF_FILE{"INPUT_DIR"}
 OUTPUT_ROOT=$VSCNF_FILE{"OUTPUT_ROOT"}
 TMPDIR=$VSCNF_FILE{"TMPDIR"}
@@ -311,8 +327,10 @@ MIN_SUPPORT_REQUIRED=$VSCNF_FILE{"MIN_SUPPORT_REQUIRED"}
 
 NPROCESSES=$VSCNF_FILE{"NPROCESSES"}
 CNF
+
     close($config_fh);
     chmod 0640, $config_file; #why?
+    return $config_file;
 }
 
 ####################################

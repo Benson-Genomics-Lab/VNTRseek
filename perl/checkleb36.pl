@@ -1,30 +1,31 @@
 #!/usr/bin/env perl
 
 # command line usage example:
-#  ./checkl3b36.pl inputfolder referencefolder 
+#  ./checkl3b36.pl inputfolder
 
 use strict;
 use warnings;
 use Cwd;
 use POSIX qw(strftime);
 
-if (@ARGV<1) {
- print STDERR "\n\ncheckl3b36.pl: NOT ENOUGH INPUT PARAMS!\n";
- exit 1;
-}
-
 warn strftime( "\n\nstart: %F %T\n\n", localtime );
 
-my $curdir =  getcwd;
+die "Useage: checkl3b36.pl expects 1 argument.\n"
+    unless @ARGV;
+
+
+my $curdir =  getcwd();
 my $tgz_dir = $ARGV[0];
 
+# This is a bad way of doing this.
 # get a list of input files
 opendir(DIR, $tgz_dir);
 # the only extensions are .leb36
 my @tarballs = grep(/\.(?:leb36)$/, readdir(DIR));
 closedir(DIR);
+
 my $tarball_count = @tarballs;
-print STDERR "$tarball_count  supported files found in $tgz_dir\n";
+print STDERR "$tarball_count supported files found in $tgz_dir\n";
 die "Exiting\n" if $tarball_count == 0;
 
 # enter dir

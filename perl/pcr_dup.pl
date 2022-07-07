@@ -20,24 +20,19 @@ my $RECORDS_PER_INFILE_INSERT = 100000;
 warn strftime( "\n\nstart: %F %T\n\n", localtime );
 
 my $argc = @ARGV;
+die "Usage: pcr_dup.pl expects 7 arguments.\n"
+    unless $argc >= 7;
 
-if ( $argc < 7 ) {
-    die
-        "Usage: pcr_dup.pl indexfolder profcleanfolder dbname msdir cpucount tempdir ignorepcrdups\n";
-}
-
-my $curdir = getcwd;
-
+my $curdir       = getcwd;
 my $indexfolder  = $ARGV[0];
 my $pcleanfolder = $ARGV[1];
 my $DBSUFFIX     = $ARGV[2];
-my $run_dir      = $ARGV[3];
+my $cnf          = $ARGV[3];
 my $cpucount     = $ARGV[4];
 my $TEMPDIR      = $ARGV[5];
 my $KEEPPCRDUPS  = $ARGV[6];
 
-# get run configuration, let's us connect to DB
-my %run_conf = get_config( $DBSUFFIX, $run_dir );
+my %run_conf = get_config("CONFIG", $cnf);
 my $dbh = get_dbh()
     or die "Could not connect to database: $DBI::errstr";
 my %stats;
@@ -408,9 +403,9 @@ sub fork_pcrdup {
     # use a predefined number of files
     my $until = $files_processed + $files_to_process - 1;
     $until = $tarball_count - 1 if $until > ( $tarball_count - 1 );
-    warn 'Processing files '
-        . ( $files_processed + 1 ) . ' to '
-        . ( $until + 1 ) . "\n";
+    #warn 'Processing files '
+    #    . ( $files_processed + 1 ) . ' to '
+    #    . ( $until + 1 ) . "\n";
 
     #my $output_prefix = "$root/$files_processed-$until";
     my @file_slice = @indexfiles[ ($files_processed) .. ($until) ];
