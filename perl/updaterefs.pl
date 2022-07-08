@@ -14,7 +14,7 @@ use Data::Dumper;
 use lib "$FindBin::RealBin/lib";
 
 use vutil
-    qw(get_config get_dbh get_trunc_query set_statistics get_statistics gen_exec_array_cb vs_db_insert);
+    qw(get_config get_dbh set_statistics get_statistics gen_exec_array_cb vs_db_insert);
 
 my $RECORDS_PER_INFILE_INSERT = 100000;
 
@@ -1948,7 +1948,7 @@ $dbh->do("PRAGMA synchronous = OFF");
 $dbh->do("PRAGMA temp_store = 2");
 
 # $dbh->begin_work;
-$dbh->do( get_trunc_query( $run_conf{BACKEND}, "main.fasta_ref_reps" ) )
+$dbh->do("DELETE FROM main.fasta_ref_reps")
     or die "Couldn't do statement: " . $dbh->errstr;
 
 # $dbh->commit;

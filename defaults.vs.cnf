@@ -78,4 +78,4 @@ REFERENCE_INDIST_PRODUCE=0
 # set this to the number of processors on your system
 # (or less if sharing the system with others or RAM is limited)
 # eg, 8
-NPROCESSES=-1
+NPROCESSES=2

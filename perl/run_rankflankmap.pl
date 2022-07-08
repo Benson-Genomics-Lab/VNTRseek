@@ -16,7 +16,7 @@ use Try::Tiny;
 use lib "$FindBin::RealBin/lib";
 
 use vutil
-    qw(get_config get_dbh set_statistics get_trunc_query gen_exec_array_cb vs_db_insert);
+    qw(get_config get_dbh set_statistics gen_exec_array_cb vs_db_insert);
 
 
 sub nowhitespace($) {
@@ -58,14 +58,14 @@ $dbh->do("PRAGMA synchronous = OFF");
 $dbh->do("PRAGMA journal_mode = TRUNCATE");
 
 # clear map
-$dbh->begin_work;
-$dbh->do( get_trunc_query( $run_conf{BACKEND}, "map" ) )
+$dbh->begin_work();
+$dbh->do( "DELETE FROM map" )
     or die "Couldn't do statement: " . $dbh->errstr;
 
 # clear rankflank
-$dbh->do( get_trunc_query( $run_conf{BACKEND}, "rankflank" ) )
+$dbh->do( "DELETE FROM rankflank" )
     or die "Couldn't do statement: " . $dbh->errstr;
-$dbh->commit;
+$dbh->commit();
 
 $map_insert_sth = $dbh->prepare(
     qq{INSERT INTO map (refid, readid, reserved, reserved2)

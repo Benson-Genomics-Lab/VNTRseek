@@ -11,7 +11,7 @@ use POSIX qw(strftime);
 use FindBin;
 use lib "$FindBin::RealBin/lib";
 use vutil
-    qw(get_config get_dbh set_statistics gen_exec_array_cb vs_db_insert get_trunc_query);
+    qw(get_config get_dbh set_statistics gen_exec_array_cb vs_db_insert);
 
 if ( $ENV{DEBUG} ) {
     use Data::Dumper;
@@ -51,14 +51,14 @@ my $TEMP_CLNK;
 # change settings to speedup updates and inserts
 $dbh->do("PRAGMA foreign_keys = OFF");
 
-$dbh->begin_work;
+$dbh->begin_work();
 
 # update reserved field on entire table
 $dbh->do('UPDATE clusterlnk SET reserved=0,reserved2=0;')
     or die "Couldn't do statement: " . $dbh->errstr;
 $dbh->do('UPDATE map SET reserved=0,reserved2=0;')
     or die "Couldn't do statement: " . $dbh->errstr;
-$dbh->do( get_trunc_query( $run_conf{BACKEND}, "vntr_support" ) )
+$dbh->do( "DELETE FROM vntr_support" )
     or die "Couldn't do statement: " . $dbh->errstr;
 
 $dbh->do(

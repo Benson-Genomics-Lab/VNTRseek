@@ -17,7 +17,7 @@ use Try::Tiny;
 # set_install_dir("$FindBin::RealBin");
 
 use vutil
-    qw(trim get_config get_dbh set_statistics get_trunc_query gen_exec_array_cb vs_db_insert);
+    qw(trim get_config get_dbh set_statistics gen_exec_array_cb vs_db_insert);
 use Data::Dumper;
 
 my $RECORDS_PER_INFILE_INSERT = 100000;
@@ -98,20 +98,17 @@ print STDERR
 
 # clear  tables
 print STDERR "\ntruncating database tables\n\n";
-my ( $trunc_query, $sth );
-$dbh->begin_work;
-$trunc_query = get_trunc_query( $run_conf{BACKEND}, "replnk" );
-$sth         = $dbh->do($trunc_query);
-$trunc_query = get_trunc_query( $run_conf{BACKEND}, "fasta_reads" );
-$sth         = $dbh->do($trunc_query);
-$dbh->commit;
+$dbh->begin_work();
+$dbh->do("DELETE FROM replnk");
+$dbh->do("DELETE FROM fasta_reads");
+$dbh->commit();
 
 $dbh->do("PRAGMA foreign_keys = OFF");
 $dbh->do("PRAGMA synchronous = OFF");
 $dbh->do("PRAGMA journal_mode = TRUNCATE");
 
 # Insert all ref TRs from replnk file
-$sth = $dbh->prepare(
+my $sth = $dbh->prepare(
     qq{INSERT INTO
     replnk(rid,sid,first,last,patsize,copynum,pattern,profile,profilerc,profsize)
     VALUES (?,?,?,?,?,?,?,?,?,?)}

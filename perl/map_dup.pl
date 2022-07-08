@@ -16,7 +16,7 @@ use FindBin;
 use File::Basename;
 
 use lib "$FindBin::RealBin/lib";
-use vutil qw(get_config get_dbh gen_exec_array_cb vs_db_insert set_statistics get_trunc_query);
+use vutil qw(get_config get_dbh gen_exec_array_cb vs_db_insert set_statistics);
 
 print strftime( "\n\nstart: %F %T\n\n\n", localtime );
 

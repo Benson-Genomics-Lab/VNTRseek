@@ -10,7 +10,7 @@ use FindBin;
 use File::Basename;
 use File::Path qw(make_path);
 use lib "$FindBin::RealBin/lib";
-use vutil qw(get_config get_dbh set_statistics get_trunc_query);
+use vutil qw(get_config get_dbh set_statistics);
 
 warn strftime("\n\nstart: %F %T\n\n", localtime);
 
@@ -226,7 +226,7 @@ print STDOUT "Updated $updfromtable clusters from $pcdupd processed.\n";
 print STDOUT "Populating rank table...\n";
 
 # prepare rank table
-$sth = $dbh->do(get_trunc_query("sqlite", "rank"))
+$sth = $dbh->do("DELETE FROM rank")
     or die "Couldn't do statement: " . $dbh->errstr;
 
 $query = q{INSERT INTO rank VALUES(?, ?, ?, ?, "'")};

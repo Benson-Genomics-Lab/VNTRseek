@@ -15,7 +15,7 @@ use File::Basename;
 use lib "$FindBin::RealBin/lib";
 
 use vutil
-    qw(get_config get_dbh set_statistics get_trunc_query gen_exec_array_cb vs_db_insert);
+    qw(get_config get_dbh set_statistics gen_exec_array_cb vs_db_insert);
 
 sub nowhitespace($) {
     my $string = shift;
@@ -62,10 +62,10 @@ my $BREAK_SIZE = 4000;
 #exit(1);
 
 # clear database cluster tables
-$write_dbh->do( get_trunc_query( $run_conf{BACKEND}, "clusters" ) )
+$write_dbh->do( "DELETE FROM clusters" )
     or die "Couldn't do statement: " . $write_dbh->errstr;
 
-$write_dbh->do( get_trunc_query( $run_conf{BACKEND}, "clusterlnk" ) )
+$write_dbh->do( "DELETE FROM clusterlnk" )
     or die "Couldn't do statement: " . $write_dbh->errstr;
 
 $write_dbh->do("PRAGMA foreign_keys = OFF");

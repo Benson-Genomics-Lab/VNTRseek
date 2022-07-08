@@ -21,7 +21,7 @@ use FindBin;
 use File::Basename;
 
 use lib "$FindBin::RealBin/lib";
-use vutil qw(trim get_config get_dbh set_statistics get_trunc_query);
+use vutil qw(trim get_config get_dbh set_statistics);
 
 my $strip454 = "0";
 

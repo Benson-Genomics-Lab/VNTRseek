@@ -13,7 +13,7 @@ use File::Basename;
 
 use lib "$FindBin::RealBin/lib";
 use vutil
-    qw(get_config get_dbh set_statistics get_trunc_query gen_exec_array_cb);
+    qw(get_config get_dbh set_statistics gen_exec_array_cb);
 
 my $RECORDS_PER_INFILE_INSERT = 100000;
 
@@ -245,10 +245,6 @@ $dbh->begin_work();
 my $delfromtable = $dbh->do($query);
 $dbh->commit();
 
-# cleanup temp file
-if ( $run_conf{BACKEND} eq "mysql" ) {
-    unlink("$TEMPDIR/pduptemp_$DBSUFFIX.txt");
-}
 
 print "\n\nProcessing complete (pcr_dup.pl), deleted $deleted duplicates.\n";
 @stats{qw( RANK_REMOVED_PCRDUP RANKFLANK_REMOVED_PCRDUP )}
@@ -285,13 +281,8 @@ $dbh->do("UPDATE map SET bbb=0;")
     or die "Couldn't do statement: " . $dbh->errstr;
 
 # clear all pduptemp entries
-$dbh->do( get_trunc_query( $run_conf{BACKEND}, "pduptemp" ) )
+$dbh->do( "DELETE FROM pduptemp" )
     or die "Couldn't do statement: " . $dbh->errstr;
-
-if ( $run_conf{BACKEND} eq "mysql" ) {
-    $dbh->do('ALTER TABLE pduptemp DISABLE KEYS;')
-        or die "Couldn't do statement: " . $dbh->errstr;
-}
 
 # clear all pduptemp entries
 $sth = $dbh->prepare(
@@ -304,11 +295,6 @@ $sth = $dbh->prepare(
 $dbh->begin_work();
 $sth->execute();
 $dbh->commit();
-
-if ( $run_conf{BACKEND} eq "mysql" ) {
-    $dbh->do('ALTER TABLE pduptemp ENABLE KEYS;')
-        or die "Couldn't do statement: " . $dbh->errstr;
-}
 
 $query = q{UPDATE map SET bbb=1
     WHERE EXISTS (

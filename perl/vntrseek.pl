@@ -55,14 +55,10 @@ my $run_dir = getcwd();                # where the script gets called from
 #my $REFS_REDUND = 374579;
 my $REFS_REDUND = 0;    # used to be used in latex file, not anymore
 
-# enter install directory
-die("Cannot access install directory ($install_dir).\n")
-    unless chdir("$install_dir");
-
 my $HELPSTRING
     = "\nUsage: $0 <start step> <end step> [options]\n\n"
     . "\tThe first step is 0, last step is 19.\n"
-    . "\tAt least --DBSUFFIX and --INPUT_DIR must be provided,\n"
+    . "\tAt least --DBSUFFIX, --INPUT_DIR, and --REFERENCE must be provided,\n"
     . "\t  or a valid --CONFIG file specifying them.\n"
     . "\t  Use --GEN_CONFIG to generate a default file.\n\n"
     . "\tA config can be provided with command line arguments,\n"
@@ -80,7 +76,7 @@ my $HELPSTRING
     . "\t--REFERENCE_INDIST_PRODUCE    generate a file of indistinguishable references, 0/1 (default 0)\n"
     . "\n"
     . "\t--PLOIDY                      sample's ploidy (default 2)\n"
-    . "\t--READ_LENGTH                 length of fasta reads\n"
+    . "\t--READ_LENGTH                 length of fasta reads (default 150)\n"
     . "\t--IS_PAIRED_READS             data is paired reads, 0/1 (default 1)\n"
     . "\t--STRIP_454_KEYTAGS           for 454 platform, strip leading 'TCAG', 0/1 (default 0)\n"
     . "\t--KEEPPCRDUPS                 whether to find and remove PCR duplicates. (default: 1, duplicates are kept)\n"
@@ -105,7 +101,7 @@ my $HELPSTRING
 # set options based on command line
 my %opts = ();
 GetOptions(
-    \%args,                   "HELP",
+    \%opts,                   "HELP",
     "NPROCESSES=i",           "MIN_FLANK_REQUIRED=i",
     "MAX_FLANK_CONSIDERED=i", "MIN_SUPPORT_REQUIRED=i",
     "KEEPPCRDUPS=i",          "DBSUFFIX=s",
@@ -133,8 +129,15 @@ if ($opts{'GEN_CONFIG'}) {
     exit;
 }
 
-# Load configuration files and combine with CLI args
+# Load configuration files and combine with CLI args.
+# Make sure all the configuration options are safe for running.
+# Write out a terse config file to output directory.
 %opts = get_config(%opts);
+validate_config();
+
+# enter install directory
+die("Cannot access install directory ($install_dir).\n")
+    unless chdir("$install_dir");
 
 # Initialize a reference set db if --reference was given, but not --dbsuffix
 if (!exists $opts{'DBSUFFIX'} && exists $opts{'REFERENCE'} ) {
@@ -172,16 +175,12 @@ if (exists $opts{'STATS'}) {
     exit;
 }
 
-# Make sure all the configuration options are safe for running
-#   and write out a terse config file to output directory.
-validate_config();
-my $config_file = print_config();
-
-
 my $timestart;
 
 # will be created at the output root by the pipeline, ex: "/bfdisk/vntr_$DBSUFFIX";
 my $output_folder = "$opts{OUTPUT_ROOT}/vntr_$opts{DBSUFFIX}";    # DO NOT CHANGE, this
+mkdir $output_folder unless -e $output_folder;
+my $config_file = print_config();
 
 # this is where TRF output will go converted to leb36 format
 my $read_profiles_folder = "$output_folder/data_out/";
@@ -209,11 +208,11 @@ my $MIN_PERIOD_REQUIRED = 7;    # anything with pattern less then this is discar
 
 my $TRF_EXECUTABLE = '@TRFBin@';
 my $TRF_PARAM
-    = "./$TRF_EXECUTABLE - $MATCH $MISMATCH $INDEL 80 10 50 2000 -d -h -ngs";
+    = "'./$TRF_EXECUTABLE' - $MATCH $MISMATCH $INDEL 80 10 50 2000 -d -h -ngs";
 
 my $TRF2PROCLU_EXE = 'trf2proclu-ngs.exe';
 my $TRF2PROCLU_PARAM
-    = "./$TRF2PROCLU_EXE -m $MATCH -s $MISMATCH -i $INDEL -p $MIN_PERIOD_REQUIRED -l $opts{MIN_FLANK_REQUIRED}";
+    = "'./$TRF2PROCLU_EXE' -m $MATCH -s $MISMATCH -i $INDEL -p $MIN_PERIOD_REQUIRED -l $opts{MIN_FLANK_REQUIRED}";
 
 # verify executables
 my @executables = (
@@ -822,7 +821,7 @@ if ( $STEP == 8 ) {
     print $tmp_rotindex $rotindex_str;
     close $tmp_rotindex;
 
-    my $exstring = "./insert_reads.pl"
+    my $exstring = "./insert_reads.pl";
     my @exargs = (
         "$read_profiles_folder_clean/all.clusters",
         "$read_profiles_folder",
@@ -899,14 +898,14 @@ if ( $STEP == 10 ) {
     print STDERR "\n\nExecuting step #$STEP (aligning ref-read flanks)...";
 
 # 0 for maxerror, means flankalign will pick maxerror based on individual flanklength
-    my $exstring = "./flankalign.exe"
+    my $exstring = "./flankalign.exe";
     my @exargs = (
         "$read_profiles_folder_clean/out",
         "$read_profiles_folder_clean/result",
         "$read_profiles_folder_clean/allwithdups.flanks",
         0,
         "$opts{MAX_FLANK_CONSIDERED}",
-        "$opts{NPROCESSES}"
+        "$opts{NPROCESSES}",
         "15");
     system($exstring, @exargs);
     if ( $? == -1 ) {
@@ -1117,7 +1116,7 @@ if ( $STEP == 17 ) {
 
     $timestart = time();
     print STDERR "\n\nExecuting step #$STEP (computing variability)...";
-    my $exstring = "./run_variability.pl"
+    my $exstring = "./run_variability.pl";
     my @exargs = (
         "$read_profiles_folder_clean/allwithdups.clusters",
         "$read_profiles_folder_clean/out",
@@ -1195,7 +1194,7 @@ if ( $STEP == 19 ) {
         "$read_profiles_folder_clean/out/representatives.txt",
         "${read_profiles_folder_clean}/result/${DBNAME}",
         "$VERSION");
-    system(@exstring, @exargs);
+    system($exstring, @exargs);
     if ( $? == -1 ) {
         SetError( $STEP, "command failed: $!", -1 );
         die "command failed: $!\n";
@@ -1221,8 +1220,7 @@ if ( $STEP == 19 ) {
 
     $exstring = qq(find "${read_profiles_folder_clean}/best" -type f -delete);
     system($exstring);
-    $exstring
-        = qq(find "${read_profiles_folder_clean}/edges" -type f -delete);
+    $exstring = qq(find "${read_profiles_folder_clean}/edges" -type f -delete);
     system($exstring);
     $exstring = qq(find "${read_profiles_folder_clean}/out" -type f -delete);
     system($exstring);
@@ -1235,9 +1233,9 @@ if ( $STEP == 19 ) {
     my $dbfile = "$opb/$opts{DBSUFFIX}.db";
     my $dbfile2 = "$opb/$opts{DBSUFFIX}_rl$opts{READ_LENGTH}.db";
     print STDOUT "Finalizing:\n$dbfile\nbeing reduced into\n$dbfile2\n";
-    system("nice --20 sqlite3 $dbfile < reduced_db.sql > $opb/finalization.out 2>&1");
+    system("sqlite3 $dbfile < reduced_db.sql");
     system("mv temp_reduced.db $dbfile2");
-    
+
     print STDERR "done!\n";
 }
 

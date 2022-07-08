@@ -1,6 +1,7 @@
 package vutil;
 use v5.24;
 use Cwd;
+use Cwd 'abs_path';
 use DBI;
 use Carp;
 use FindBin;
@@ -13,12 +14,17 @@ if ( $ENV{DEBUG} ) {
 }
 
 use base 'Exporter';
-our @EXPORT_OK
-    = qw(trim read_config_file get_config validate_config set_credentials get_dbh get_ref_dbh make_refseq_db load_refprofiles_db run_redund write_sqlite set_statistics get_statistics set_datetime print_config trim create_blank_file get_trunc_query sqlite_install_RC_function gen_exec_array_cb vs_db_insert);
+our @EXPORT_OK = qw(trim read_config_file get_config validate_config
+    set_credentials get_dbh get_ref_dbh make_refseq_db load_refprofiles_db
+    run_redund write_sqlite set_statistics get_statistics set_datetime
+    print_config trim create_blank_file
+    sqlite_install_RC_function gen_exec_array_cb vs_db_insert);
 
 # vutil.pm
 # author: Yevgeniy Gelfand, Yozen Hernandez
+# maintainer: Kyler Anderson
 # create date: Oct 30, 2010
+# last edited: Jul 8, 2022
 # function: common functions for vntr pipleline scripts.
 # Provide functions for database management, configuration
 # reading/writing, and miscellaneous common utilities.
@@ -171,7 +177,10 @@ sub get_config {
 
     # load local settings
     if (exists $args{'CONFIG'} and $args{'CONFIG'}) {
-        my %local = read_config_file($args('CONFIG'));
+        croak "Cannot access local config at $args{'CONFIG'}. Please check name and permissions.\n"
+            unless -r -e $args{'CONFIG'};
+
+        my %local = read_config_file($args{'CONFIG'});
         for my $key (keys %local) {
             $opts{$key} = $local{$key};
         }
@@ -182,7 +191,7 @@ sub get_config {
         $opts{$key} = $args{$key};
     }
 
-    # For older runs where FASTA_DIR was the name of the option
+    # Backwards compatibility option substitutions
     my %renames = (
         'FASTA_DIR', 'INPUT_DIR'#, other renames coming soon
         #'OUTPUT_ROOT', 'OUTPUT_DIR',
@@ -194,14 +203,20 @@ sub get_config {
         if ($opts{$old_name}) { $opts{$renames{$old_name}} = $opts{$old_name};}
     }
 
-    # DELETEME While testing, this option is always sqlite.
-    # In final version, this option will be gone completely.
-    $opts{'BACKEND'} = 'sqlite';
-
-    # Since all of the sub-scripts are called in a subprocess
+    # Since all of the sub-scripts are called in a subprocess,
     #   we consume a process before ever forking.
-    #   To avoid using more than advertised, we need to shave one off here.
+    # To avoid using more processors than advertised,
+    #   we need to shave one off.
     $opts{'NPROCESSES'} -= 1;
+
+    # Resolve relative paths for future chdirs
+    for my $file ('INPUT_DIR', 'OUTPUT_ROOT', 'TMPDIR') {
+        if ($opts{$file}) { $opts{$file} = abs_path($opts{$file});}
+    }
+    if (!$opts{'TMPDIR'}) {
+        $opts{'TMPDIR'} = $opts{'OUTPUT_ROOT'};
+        warn "TMPDIR not set. Using OUTPUT_ROOT ($opts{'OUTPUT_ROOT'}).\n";
+    }
 
     # keep a local copy of everything and send back the results
     %VSCNF_FILE = %opts;
@@ -214,33 +229,26 @@ sub validate_config {
 
     # Validation
     croak("Please set the database prefix (DBSUFFIX) on the command line or in the configuration file.\n")
-        unless exists $VSCNF_FILE{'DBSUFFIX'} and $VSCNF_FILE{'DBSUFFIX'};
+        unless $VSCNF_FILE{'DBSUFFIX'};
 
     croak("Please set the input directory (INPUT_DIR) on the command line or in the configuration file.\n")
-        unless exists $VSCNF_FILE{'INPUT_DIR'} and $VSCNF_FILE{'INPUT_DIR'};
+        unless $VSCNF_FILE{'INPUT_DIR'};
     croak("Input directory '$VSCNF_FILE{'INPUT_DIR'}' could not be read. Check the spelling and/or your permissions.")
         unless -r -e $VSCNF_FILE{'INPUT_DIR'};
 
     croak("OUTPUT_ROOT value cannot be blank. " . $please_check)
         unless $VSCNF_FILE{'OUTPUT_ROOT'};
     croak("Output directory '$VSCNF_FILE{'OUTPUT_ROOT'}' could not be accessed. Check the spelling and/or your permissions.")
-        unless (-e $VSCNF_FILE{'OUTPUT_ROOT'} or mkdir( $VSCNF_FILE{'OUTPUT_ROOT'} )) and -x -w $VSCNF_FILE{'OUTPUT_ROOT'};
+        unless (-e $VSCNF_FILE{'OUTPUT_ROOT'} or mkdir( $VSCNF_FILE{'OUTPUT_ROOT'} )) and -x -w -r $VSCNF_FILE{'OUTPUT_ROOT'};
 
-    if (!$VSCNF_FILE{'TMPDIR'}) {
-        $VSCNF_FILE{'TMPDIR'} = $VSCNF_FILE{'OUTPUT_ROOT'};
-        warn "TMPDIR not set. Using OUTPUT_ROOT ($VSCNF_FILE{'OUTPUT_ROOT'}).\n"
-             . "TMPDIR variable can be set on the command line or in the configuration file.";
-    }
-    else {
-        croak("Temporary file directory '$VSCNF_FILE{'TMPDIR'}' could not be accessed. Check the spelling and/or your permissions.")
-            unless (-e $VSCNF_FILE{'TMPDIR'} or mkdir( $VSCNF_FILE{'TMPDIR'} )) and -x -w $VSCNF_FILE{'TMPDIR'};
-    }
+    croak("Temporary file directory '$VSCNF_FILE{'TMPDIR'}' could not be accessed. Check the spelling and/or your permissions.")
+        unless (-e $VSCNF_FILE{'TMPDIR'} or mkdir( $VSCNF_FILE{'TMPDIR'} )) and -x -w -r $VSCNF_FILE{'TMPDIR'};
 
     croak("SERVER value cannot be blank. " . $please_check)
         unless $VSCNF_FILE{'SERVER'};
 
 
-    croak("PLOIDY value must be > 0. " .  $please_check)
+    croak("PLOIDY value must be > 0. " . $please_check)
         unless $VSCNF_FILE{'PLOIDY'} > 0;
 
     croak("READ_LENGTH value must be > 0. " . $please_check)
@@ -266,11 +274,8 @@ sub validate_config {
         unless $VSCNF_FILE{'MIN_SUPPORT_REQUIRED'} > 0;
 
 
-    if ( $VSCNF_FILE{'NPROCESSES'} <= 0 ) {
-        $VSCNF_FILE{'NPROCESSES'} = 2; # Intentional discrepancy, see get_config
-        warn("NPROCESSES not set. Using default of 3.\n" 
-             . "NPROCESSES variable can be set on the command line or in the configuration file.\n");
-    }
+    croak("NPROCESSES value must be > 1. " . $please_check)
+        unless $VSCNF_FILE{'NPROCESSES'} > 0; # Intentional discrepancy, see get_config
 
 
     croak("Please set the reference base name (REFERENCE) on the command line or in the configuration file.\n")
@@ -291,15 +296,16 @@ sub validate_config {
 ################################################################
 sub print_config {
     my $output_folder = "$VSCNF_FILE{'OUTPUT_ROOT'}/vntr_$VSCNF_FILE{'DBSUFFIX'}";
-    my $config_file = "$output_folder/" . $VSCNF_FILE{'DBSUFFIX'} . ".vs.cnf";
+    my $config_file = "$output_folder/$VSCNF_FILE{'DBSUFFIX'}.vs.cnf";
     my $when = strftime("%c", localtime);
+    my $padproc = $VSCNF_FILE{'NPROCESSES'} + 1;
     open( my $config_fh, ">", $config_file )
         or die "Cannot open '$config_file' for writing!\n";
 
     print $config_fh <<CNF;
 # VNTRseek complete configuration
 # $when
-# You can provide this with the --CONFIG
+# You can provide this file with the --CONFIG
 #   option to reproduce the latest run.
 # This will always be generated here and
 #   overwritten to match the last configuration
@@ -318,6 +324,7 @@ REFERENCE_INDIST_PRODUCE=$VSCNF_FILE{"REFERENCE_INDIST_PRODUCE"}
 
 PLOIDY=$VSCNF_FILE{"PLOIDY"}
 IS_PAIRED_READS=$VSCNF_FILE{"IS_PAIRED_READS"}
+READ_LENGTH=$VSCNF_FILE{"READ_LENGTH"}
 KEEPPCRDUPS=$VSCNF_FILE{"KEEPPCRDUPS"}
 STRIP_454_KEYTAGS=$VSCNF_FILE{"STRIP_454_KEYTAGS"}
 
@@ -325,7 +332,7 @@ MIN_FLANK_REQUIRED=$VSCNF_FILE{"MIN_FLANK_REQUIRED"}
 MAX_FLANK_CONSIDERED=$VSCNF_FILE{"MAX_FLANK_CONSIDERED"}
 MIN_SUPPORT_REQUIRED=$VSCNF_FILE{"MIN_SUPPORT_REQUIRED"}
 
-NPROCESSES=$VSCNF_FILE{"NPROCESSES"}
+NPROCESSES=$padproc
 CNF
 
     close($config_fh);
@@ -816,22 +823,6 @@ sub make_refseq_db {
 
         $dbh->commit;
     }
-}
-
-####################################
-sub get_trunc_query {
-    die "Error: need table name for truncate query\n"
-        unless @_ == 2;
-    my ( $backend, $table ) = @_;
-    my $trunc_query;
-    if ( $backend eq "sqlite" ) {
-        $trunc_query = qq{DELETE FROM $table};
-    }
-    elsif ( $backend eq "mysql" ) {
-        $trunc_query = qq{TRUNCATE TABLE $table};
-    }
-
-    return $trunc_query;
 }
 
 ################################################################
