@@ -6,6 +6,10 @@ BACKEND=sqlite
 # eg, 8
 NPROCESSES=-1
 
+# length of reads from sequencing in fasta
+# eg, 150
+READ_LENGTH=150
+
 # minimum required flank on both sides for a read TR to be considered
 # eg, 10
 MIN_FLANK_REQUIRED=10
@@ -55,11 +59,11 @@ INPUT_DIR=
 
 # output directory (must be writable and executable!)
 # eg, /output
-OUTPUT_ROOT=
+OUTPUT_ROOT=output
 
 # temp (scratch) directory (must be executable!)
 # eg, /tmp
-TMPDIR=/tmp
+TMPDIR=output
 
 # names for the reference files 
 

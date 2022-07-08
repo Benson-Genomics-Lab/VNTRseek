@@ -17,7 +17,8 @@ use Try::Tiny;
 # set_install_dir("$FindBin::RealBin");
 
 use vutil
-    qw(get_config get_dbh set_statistics get_trunc_query gen_exec_array_cb vs_db_insert);
+    qw(trim get_config get_dbh set_statistics get_trunc_query gen_exec_array_cb vs_db_insert);
+use Data::Dumper;
 
 my $RECORDS_PER_INFILE_INSERT = 100000;
 

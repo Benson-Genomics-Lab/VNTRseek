@@ -2248,11 +2248,11 @@ $dbh->do("PRAGMA temp_store = 0");
 $dbh->do("PRAGMA main.optimize");
 $dbh->disconnect;
 
-warn "Producing output LaTeX file...\n";
-print_latex($ReadTRsSupport);
+#warn "Producing output LaTeX file...\n";
+#print_latex($ReadTRsSupport);
 
-warn "Producing distribution file...\n";
-print_distr();
+#warn "Producing distribution file...\n";
+#print_distr();
 
 # Print VCF
 warn "Producing VCF...\n";
