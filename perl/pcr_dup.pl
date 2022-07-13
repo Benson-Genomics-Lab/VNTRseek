@@ -6,8 +6,8 @@ use strict;
 use warnings;
 use Cwd;
 use DBI;
-use List::Util qw[min max];
-use POSIX qw(strftime);
+use List::Util qw(min max);
+use POSIX "strftime";
 use FindBin;
 use File::Basename;
 
@@ -15,15 +15,14 @@ use lib "$FindBin::RealBin/lib";
 use vutil
     qw(get_config get_dbh set_statistics gen_exec_array_cb);
 
-my $RECORDS_PER_INFILE_INSERT = 100000;
 
-warn strftime( "\n\nstart: %F %T\n\n", localtime );
+warn strftime( "Start: %F %T\n\n", localtime );
 
 my $argc = @ARGV;
 die "Usage: pcr_dup.pl expects 7 arguments.\n"
     unless $argc >= 7;
 
-my $curdir       = getcwd;
+my $curdir       = getcwd();
 my $indexfolder  = $ARGV[0];
 my $pcleanfolder = $ARGV[1];
 my $DBSUFFIX     = $ARGV[2];
@@ -37,31 +36,22 @@ my $dbh = get_dbh()
     or die "Could not connect to database: $DBI::errstr";
 my %stats;
 
-# process
-warn "reading: $indexfolder\n";
-
-opendir( my $dir, $indexfolder );
-my @indexfiles = grep( /\.(?:seq)$/, readdir($dir) );
-closedir($dir);
-
-#my $i=0;
-#foreach my $ifile (@indexfiles) {
-# $i++;
-# print "\n $i. ". $ifile."...";
-
-# my $exstring = "./pcr_dup.exe $indexfolder/$ifile $indexfolder/$ifile.pcr_dup 2 3 > /dev/null";
-# #my $exstring = "./pcr_dup.exe $indexfolder/$ifile $indexfolder/$ifile.pcr_dup 2 3 > $indexfolder/$ifile.pcr_log";
-# system($exstring);
-#}
-
+my $RECORDS_PER_INFILE_INSERT = 100000;
 my $files_to_process = 100;    # number of files to process in one batch
 my $files_processed  = 0;      # files processed
 my %p;                         # associates forked pids with output pipe pids
 
 my $MYLOCK = 0;
 
+# process
+print "Reading: $indexfolder\n";
+
+opendir( my $dir, $indexfolder );
+my @indexfiles = grep( /\.(?:seq)$/, readdir($dir) );
+closedir($dir);
+
 my $tarball_count = @indexfiles;
-warn "$tarball_count supported files found in $indexfolder\n";
+print "$tarball_count supported files found in $indexfolder\n";
 
 #die "Exiting\n" if $tarball_count == 0;
 $files_to_process = $tarball_count if $files_to_process > $tarball_count;
@@ -82,10 +72,10 @@ while ( ( my $pid = wait ) != -1 ) {
     }
 }
 
-warn "Processing complete -- processed $files_processed cluster(s).\n";
+print "Processing complete -- processed $files_processed cluster(s).\n";
 
 # load results
-warn "reading: $indexfolder\n";
+print "Reading: $indexfolder\n";
 
 # first count the intersect before pcr dup
 my $rrintersect = 0;
@@ -116,11 +106,6 @@ $dbh->do("PRAGMA foreign_keys = OFF");
 $dbh->do("PRAGMA synchronous = OFF");
 $sth = $dbh->prepare(q{INSERT INTO pduptemp VALUES (?, ?)});
 
-#my $query = "DELETE FROM rank WHERE refid=? AND readid=?;";
-#$sth = $dbh->prepare($query);
-
-#$query = "DELETE FROM rankflank WHERE refid=? AND readid=?;";
-#my $sth1 = $dbh->prepare($query);
 
 opendir( $dir, $indexfolder );
 @indexfiles = grep( /\.(?:pcr_dup)$/, readdir($dir) );
@@ -137,7 +122,6 @@ foreach my $ifile (@indexfiles) {
 
         my $ref         = $1;
         my $filedeleted = 0;
-        print "\n $i. " . $ifile . "...";
 
         if ( open( my $fh, "$indexfolder/$ifile" ) ) {
 
@@ -161,8 +145,6 @@ foreach my $ifile (@indexfiles) {
             while (<$fh>) {
                 if (/^compare: (\d+) (\d+) (\d+) (\d+)\|(\d+)/) {
 
-                    #my $read = max($1,$5);
-
                     my $read;
                     if ( $NEWIDS{$1} > $NEWIDS{$5} ) {
                         $read = $1;
@@ -175,10 +157,6 @@ foreach my $ifile (@indexfiles) {
                     }
 
                     if ( !exists $RHASH{$read} ) {
-
-                        #$sth->execute($ref,$read);
-                        #$sth1->execute($ref,$read);
-                        #print "deleting: -$ref -> $read\n";
                         $deleted++;
                         $filedeleted++;
                         push @to_delete, [ $ref, $read ];
@@ -191,34 +169,18 @@ foreach my $ifile (@indexfiles) {
                                 @to_delete = ();
                             }
                             else {
-                                die
-                                    "Something went wrong inserting, but somehow wasn't caught!\n";
+                                die "Something went wrong inserting, but somehow wasn't caught!\n";
                             }
                         }
-
-                  #print "$1 (newid:$NEWIDS{$1}) - $5 (newid: $NEWIDS{$5})\n";
-                  #exit(1);
-
                         $PENTRIES{ $ref . "_" . $read } = 1;
-
                     }
-
                     $RHASH{$read} = 1;
-
                 }
             }
-
             close($fh);
-            print "($filedeleted deleted)";
-
         }
-
     }
-
 }
-
-#$sth->finish;
-#$sth1->finish;
 
 if (@to_delete) {
     my $cb = gen_exec_array_cb( \@to_delete );
@@ -228,8 +190,7 @@ if (@to_delete) {
         @to_delete = ();
     }
     else {
-        die
-            "Something went wrong inserting, but somehow wasn't caught!\n";
+        die "Something went wrong inserting, but somehow wasn't caught!\n";
     }
 }
 
@@ -246,25 +207,25 @@ my $delfromtable = $dbh->do($query);
 $dbh->commit();
 
 
-print "\n\nProcessing complete (pcr_dup.pl), deleted $deleted duplicates.\n";
+print "Processing complete (pcr_dup.pl), deleted $deleted duplicates.\n";
 @stats{qw( RANK_REMOVED_PCRDUP RANKFLANK_REMOVED_PCRDUP )}
     = ( $deleted, $deleted );
 
 # for accounting of pcr dups
-warn "\nMaking a list of pcr_dup removed...\n";
+print "Making a list of pcr_dup removed.\n";
 if ( open( my $fh, ">$pcleanfolder/result/$DBSUFFIX.pcr_dup.txt" ) ) {
     $i = 0;
     for my $key ( sort keys %PENTRIES ) {
         $i++;
         print $fh "$i\t-" . $key . "\n";
     }
-    warn "PCR_DUP list complete with $i removed entries.\n";
+    print "PCR_DUP list complete with $i removed entries.\n";
     close($fh);
 }
 
 # first count the intersect
 $rrintersect = 0;
-$sth         = $dbh->prepare(
+$sth = $dbh->prepare(
     q{SELECT count(*) FROM rank
     INNER JOIN rankflank ON rank.refid=rankflank.refid AND rank.readid=rankflank.readid}
 ) or die "Couldn't prepare statement: " . $dbh->errstr;
@@ -274,7 +235,7 @@ $sth->finish();
 $stats{INTERSECT_RANK_AND_RANKFLANK} = $rrintersect;
 
 # now exclude ties, mark in map table and record the number
-warn "Updating BEST BEST BEST map entries...\n";
+print "Updating BEST BEST BEST map entries.\n";
 
 # clear all bbb entries
 $dbh->do("UPDATE map SET bbb=0;")
@@ -309,7 +270,7 @@ $dbh->commit();
 $stats{BBB_WITH_MAP_DUPS} = $i;
 
 # make a list of ties
-warn "Making a list of ties (references)...\n";
+print "Making a list of ties (references)...\n";
 if ( open( my $fh, ">$pcleanfolder/result/$DBSUFFIX.ties.txt" ) ) {
     my $read_dbh = get_dbh( { userefdb => 1, readonly => 1 } );
     $query = qq{SELECT map.refid, max(bbb) as mbb,
@@ -331,10 +292,10 @@ if ( open( my $fh, ">$pcleanfolder/result/$DBSUFFIX.ties.txt" ) ) {
     $sth->finish;
     close($fh);
 }
-warn "Ties list complete with $i removed references.\n";
+print "Ties list complete with $i removed references.\n";
 
 # make a list of ties
-warn "\nMaking a list of ties (entries)...\n";
+print "\nMaking a list of ties (entries)...\n";
 if ( open( my $fh, ">$pcleanfolder/result/$DBSUFFIX.ties_entries.txt" ) ) {
 
     $query = q{SELECT map.refid, map.readid,rank.ties,rankflank.ties
@@ -356,7 +317,7 @@ if ( open( my $fh, ">$pcleanfolder/result/$DBSUFFIX.ties_entries.txt" ) ) {
     $sth->finish;
     close($fh);
 }
-warn "Ties list complete with $i removed entries.\n";
+print "Ties list complete with $i removed entries.\n";
 
 # set old settings
 $dbh->do("PRAGMA foreign_keys = ON");
@@ -368,7 +329,7 @@ if ( $delfromtable != $deleted ) {
 }
 
 $dbh->disconnect();
-warn strftime( "\n\nend: %F %T\n\n", localtime );
+warn strftime( "\nEnd: %F %T\n\n", localtime );
 set_statistics( \%stats );
 
 1;
@@ -389,9 +350,6 @@ sub fork_pcrdup {
     # use a predefined number of files
     my $until = $files_processed + $files_to_process - 1;
     $until = $tarball_count - 1 if $until > ( $tarball_count - 1 );
-    #warn 'Processing files '
-    #    . ( $files_processed + 1 ) . ' to '
-    #    . ( $until + 1 ) . "\n";
 
     #my $output_prefix = "$root/$files_processed-$until";
     my @file_slice = @indexfiles[ ($files_processed) .. ($until) ];
@@ -409,17 +367,10 @@ sub fork_pcrdup {
     if ( $pid == 0 ) {
 
         foreach (@file_slice) {
-
-            #warn "\t" . $_ . "\n";
-
             my $exstring
                 = "./pcr_dup.exe $indexfolder/${_} $indexfolder/${_}.pcr_dup 0 2 $KEEPPCRDUPS > /dev/null";
             system($exstring);
-
         }
-
-        #warn "\n";
-
         # child must never return
         exit 0;
 

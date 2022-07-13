@@ -6,38 +6,31 @@ use 5.010;
 use Cwd;
 use DBI;
 use File::Basename;
-use POSIX qw(strftime);
+use POSIX "strftime";
 use FindBin qw($RealBin);
 use lib "$RealBin/lib";
 use lib "$RealBin/local/lib/perl5";
 use Try::Tiny;
 
-# use ProcInputReads
-# qw(get_reader init_bam formats_regexs compressed_formats_regexs set_install_dir);
-# set_install_dir("$FindBin::RealBin");
-
 use vutil
     qw(trim get_config get_dbh set_statistics gen_exec_array_cb vs_db_insert);
 use Data::Dumper;
 
-my $RECORDS_PER_INFILE_INSERT = 100000;
-
-
 ################ main ####################
-warn strftime( "\n\nstart: %F %T\n\n", localtime );
+warn strftime( "Start: %F %T\n\n", localtime );
 
 my $argc = @ARGV;
-die "Usage: insert_reads.pl expects 9 arguments\n"
+die "Usage: insert_reads.pl expects 9 arguments.\n"
     unless $argc >= 9;
 
-my $curdir          = getcwd;
+my $curdir          = getcwd();
 my $clusterfile     = $ARGV[0];
 my $indexfolder     = $ARGV[1];
-my $fastafolder     = $ARGV[2];
+my $fastafolder     = $ARGV[2]; # not used
 my $rotatedfolder   = $ARGV[3];
 my $rotatedreffile  = $ARGV[4];
-my $cnf             = $ARGV[6];
 my $strip454        = $ARGV[5];
+my $cnf             = $ARGV[6];
 my $TEMPDIR         = $ARGV[7];
 my $IS_PAIRED_READS = $ARGV[8];
 
@@ -45,8 +38,9 @@ my %run_conf = get_config("CONFIG", $cnf);
 my $dbh = get_dbh()
     or die "Could not connect to database: $DBI::errstr";
 
+my $RECORDS_PER_INFILE_INSERT = 100000;
+
 my %RHASH    = ();
-my %SHASH    = ();
 my %HEADHASH = ();
 my $count;
 my $negcount = 0;
@@ -57,16 +51,11 @@ my $timestart = time();
 system("cp $clusterfile $rotatedfolder/allwithdups.clusters");
 
 # load the RHASH now with new values added
-#
 # read clusters to see what values we will store (so we don't have to store all)
-print STDERR
-    "\n\nreading clusterfile allwithdups.clusters to hash clustered ids (with added rotated repeats)...";
+print "Reading clusterfile allwithdups.clusters to hash clustered ids (with added rotated repeats).\n";
 open my $cluster_fh, "<", "$rotatedfolder/allwithdups.clusters" or die $!;
 $negcount = 0;
 while (<$cluster_fh>) {
-
-    #print STDERR $_;
-
     my @values = split( ',', $_ );
 
     foreach my $val (@values) {
@@ -77,27 +66,21 @@ while (<$cluster_fh>) {
         $val = trimhead($val);
 
         if ( $val > 0 ) {
-            $RHASH{"$val"} = $dir;
-
-            #print "setting `$val`\n";
+            $RHASH{$val} = $dir;
         }
         else {
             $negcount++;
         }
     }
-
-    #exit(1);
 }
 close($cluster_fh);
 
-print STDERR
-    keys(%RHASH)
-    . " positive entries inserted into hash. (plus $negcount neg reference ones not in hash) ("
-    . ( time() - $timestart )
-    . ") secs\n\n";
+print keys(%RHASH) . " positive entries inserted into hash."
+    . " (plus $negcount neg reference ones not in hash) ("
+    . ( time() - $timestart ) . " secs).\n";
 
 # clear  tables
-print STDERR "\ntruncating database tables\n\n";
+print "Truncating database tables\n";
 $dbh->begin_work();
 $dbh->do("DELETE FROM replnk");
 $dbh->do("DELETE FROM fasta_reads");
@@ -115,9 +98,8 @@ my $sth = $dbh->prepare(
 );
 
 $timestart = time();
-print STDERR
-    "\nreading index file and storing relevant entries in database..."
-    . "\n\n";
+print "Reading index file and storing relevant entries in database.\n";
+
 opendir( DIR, $indexfolder );
 my @filelist   = readdir(DIR);
 my @indexfiles = sort grep( /\.(?:index\.renumbered)$/, @filelist );
@@ -125,7 +107,6 @@ my @readfiles  = sort grep( /\.(?:reads)$/, @filelist );
 closedir(DIR);
 
 my $indexcount = @indexfiles;
-my $i          = 0;
 my $inserted   = 0;
 my $processed  = 0;
 my $id;
@@ -140,20 +121,15 @@ my $fh2;
 my @replnk_rows;
 
 die "read file count doesn't equal index file count: ($indexcount vs "
-    . 1 * @readfiles . ")\n"
+    . scalar @readfiles . ")\n"
     if ( $indexcount != @readfiles );
 
 foreach my $ifile (@indexfiles) {
 
+    my $lfile = $ifile =~ s/index/leb36/r;
+
     open( $fh1, "<", "$indexfolder/$ifile" ) or die $!;
-    $i = 0;
-
-    my $lfile = $ifile;
-    $lfile =~ s/index/leb36/;
-
     open( $fh2, "<", "$indexfolder/$lfile" ) or die $!;
-
-    #print STDERR "\n" . $ifile . "-" . $lfile . "...";
 
     my $line1 = read_file_line($fh1);
     my $line2 = read_file_line($fh2);
@@ -164,7 +140,7 @@ foreach my $ifile (@indexfiles) {
         {
 
             if ( exists $RHASH{"$1"} ) {
-                $processed++;
+                $processed++; # this counts the number of unique ids
 
                 $id      = $1;
                 $head    = $2;
@@ -173,29 +149,22 @@ foreach my $ifile (@indexfiles) {
                 $copy    = $5;
                 $pat     = $6;
                 $pattern = $7;
-                $i++;
 
                 $head = trimhead($head);
 
                 unless ( exists $HEADHASH{"$head"} ) {
-
-          #$sth0->execute("$head") or die "Cannot execute: " . $sth->errstr();
                     $HEADHASH{"$head"} = $processed;
-                }
-
-       #print $id." ".$head." ".$first." ".$last." ".$copy." ".$pat." "." \n";
+                } # this checks for two different read ids having the same head, is that possible?
 
                 my @values = split( ' ', $line2 );
                 if ( $values[0] != $id ) {
-                    die
-                        "id from index file ($id) does not match id from leb36 file ($values[0])";
-                }
+                    die "id from index file ($id) does not match id from leb36 file ($values[0])";
+                } # this makes sure the ifile and lfile are line for line parallel
+                  # ... will that fail if the previous check fails?
 
                 my $profile   = $values[5];
                 my $profilerc = $values[6];
                 my $proflen   = length($profile) / 2;
-
-#$sth->execute($id,$HEADHASH{"$head"},$first,$last,$copy,$pat,$pattern,$profile,$profilerc,$proflen) or die "Cannot execute: " . $sth->errstr();
 
                 push @replnk_rows,
                     [
@@ -209,30 +178,18 @@ foreach my $ifile (@indexfiles) {
                     my $cb   = gen_exec_array_cb( \@replnk_rows );
                     my $rows = vs_db_insert( $dbh, $sth, $cb,
                         "Error inserting read TRs." );
-                    if ($rows) {
-                        $inserted += $rows;
-                        @replnk_rows = ();
-                    }
-                    else {
-                        die
-                            "Something went wrong inserting, but somehow wasn't caught!\n";
-                    }
+                    $inserted += $rows;
+                    @replnk_rows = ();
                 }
-
             }
-
-            #if ($i>10) { last; }
         }
 
-        #print $_;
         $line1 = read_file_line($fh1);
         $line2 = read_file_line($fh2);
 
     }
     close($fh1);
     close($fh2);
-    #print STDERR $i;
-
 }
 
 # Remaining rows
@@ -244,36 +201,27 @@ if (@replnk_rows) {
         @replnk_rows = ();
     }
     else {
-        die "Something went wrong inserting, but somehow wasn't caught!\n";
+        die "\nSomething went wrong inserting, but somehow wasn't caught!\n";
     }
 }
 
 if ( $inserted == keys(%RHASH) ) {
-    print STDERR "\n\n..."
-        . $inserted
-        . " read repeat entries inserted into database ("
-        . ( time() - $timestart )
-        . ") secs.\n\n";
+    print $inserted . " read repeat entries inserted into database ("
+        . ( time() - $timestart ) . " secs).\n";
 }
 else {
-    die "\n\nERROR: hash contains " .
-        keys(%RHASH)
-        . " entries, while index files only have $processed matching entries and only $inserted were inserted into the database. Aborting!\n\n";
+    die "\n\nERROR: hash contains " . keys(%RHASH)
+        . " entries, while index files only have $processed matching entries and only $inserted were inserted into the database. Aborting!\n";
 }
-
-#goto AAA;
 
 # get the read files
 $totalReads = 0;
 $inserted   = 0;
 $processed  = 0;
 $timestart  = time();
-print STDERR
-    "\nreading input read files and storing relevant entries in database..."
-    . "\n\n";
+print "Reading input read files and storing relevant entries in database.\n";
 
-$sth
-    = $dbh->prepare(
+$sth = $dbh->prepare(
     qq{INSERT INTO fasta_reads (sid, head, dna) VALUES(?, ?, ?)})
     or die "Couldn't prepare statement: " . $dbh->errstr;
 
@@ -283,7 +231,6 @@ my $qualstr       = "";
 my $HEADER_SUFFIX = "";
 my @fasta_reads_rows;
 
-# print Dumper(\%HEADHASH) . "\n";
 my $files_processed = 0;
 for my $read_file (@readfiles) {
     open my $r_fh, "<", "$indexfolder/$read_file";
@@ -301,17 +248,14 @@ for my $read_file (@readfiles) {
         $headstr = trimhead($headstr);
         $dnastr  = trimall($dnastr);
 
-        # warn "head: $headstr\tdna: $dnastr\n";
-
         my $dnabak = $dnastr;
-        if ( exists $HEADHASH{"$headstr"} ) {
+        if ( exists $HEADHASH{$headstr} ) {
 
             $processed++;
 
             if ( $strip454 eq "1" && $dnastr !~ s/^TCAG//i ) {
                 warn "Read does not start with keyseq TCAG : "
-                    . $dnabak . " ("
-                    . $headstr . ")\n";
+                    . $dnabak . " (" . $headstr . ")\n";
             }
 
             push @fasta_reads_rows,
@@ -319,38 +263,25 @@ for my $read_file (@readfiles) {
 
             if ( $processed % $RECORDS_PER_INFILE_INSERT == 0 ) {
                 my $cb   = gen_exec_array_cb( \@fasta_reads_rows );
-                my $rows = vs_db_insert( $dbh, $sth, $cb,
-                    "Error inserting reads. row dump: "
-                        . Dumper( \@fasta_reads_rows ) );
-                if ($rows) {
-                    $inserted += $rows;
-                    @fasta_reads_rows = ();
-                }
-                else {
-                    die
-                        "Something went wrong inserting, but somehow wasn't caught!\n";
-                }
+                my $rows = vs_db_insert( $dbh, $sth, $cb, # this method DOES NOT RETURN if it's return value
+                    "Error inserting reads.");            #   evaluates to false, and prints all the problematic lines
+                $inserted += $rows;
+                @fasta_reads_rows = ();
             }
         }
     }
 
     close $r_fh;
     $files_processed++;
-    #print STDERR "(processed: $processed)\n";
 }
 
 # cleanup
 if (@fasta_reads_rows) {
     my $cb   = gen_exec_array_cb( \@fasta_reads_rows );
     my $rows = vs_db_insert( $dbh, $sth, $cb,
-        "Error inserting reads. row dump: " . Dumper( \@fasta_reads_rows ) );
-    if ($rows) {
-        $inserted += $rows;
-        @fasta_reads_rows = ();
-    }
-    else {
-        die "Something went wrong inserting, but somehow wasn't caught!\n";
-    }
+        "Error inserting reads.");
+    $inserted += $rows;
+    @fasta_reads_rows = ();
 }
 
 # reenable indices
@@ -362,28 +293,27 @@ $dbh->disconnect();
 
 set_statistics( { NUMBER_READS => $totalReads } ) if ($totalReads);
 
-# check
+# check ... why?
+
+# okay, so the first two checks aren't analogous and the
+# first one being true doesnt ammeliorate the second one
+# being false
 if ( $inserted == keys(%HEADHASH) ) {
-    print STDERR "\n\n..."
-        . $inserted
-        . " reads inserted into database  ("
-        . ( time() - $timestart )
-        . ") secs..\n\n";
+    print $inserted . " reads inserted into database ("
+        . ( time() - $timestart ) . " secs).\n";
 }
 elsif ( $inserted != $processed ) {
-    die "\n\nERROR: inserted into database "
-        . $inserted
-        . " entries, while input read files have $processed matching entries. Aborting!\n\n";
+    die "\nERROR: inserted into database " . $inserted
+        . " entries, while input read files have $processed matching entries. Aborting!\n";
 }
 else {
-    die "\n\nERROR: hash contains " .
-        keys(%HEADHASH)
-        . " entries, while input read files only have $inserted matching entries. Aborting!\n\n";
+    die "\nERROR: hash contains " . keys(%HEADHASH)
+        . " entries, while input read files only have $inserted matching entries. Aborting!\n";
 }
 
-print STDERR "\n\nProcessing complete (insert_reads.pl).\n";
+print "Processing complete (insert_reads.pl).\n";
 
-warn strftime( "\n\nend: %F %T\n\n", localtime );
+warn strftime( "\nEnd: %F %T\n\n", localtime );
 
 1;
 

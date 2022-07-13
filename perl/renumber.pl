@@ -12,19 +12,19 @@ getopts( 'rn', \%options );
 
 # like the shell getopt, "d:" means d takes an argument
 die "Usage:
-	./renumber.pl [-r -n] [directory]
+\t./renumber.pl [-r -n] [directory]
 
 Renumbers pairs of LEB36 and index files.
 
 \t-r\tno renumbering -- only sign is switched
-\t-n\tno indexes -- only work on LEB36 files
-" if not scalar(@ARGV);
+\t-n\tno indexes -- only work on LEB36 files"
+    if not scalar(@ARGV);
 
 my $switch_sign = ( defined $options{'r'} && $options{'r'} ) ? 1 : 0;
 my $use_index   = ( defined $options{'n'} && $options{'n'} ) ? 0 : 1;
 
-print STDERR "Only changing the sign\n" if $switch_sign;
-print STDERR "Not using indexes\n"      if !$use_index;
+print "Only changing the sign\n" if $switch_sign;
+print "Not using indexes\n"      if !$use_index;
 
 my @files;
 
@@ -55,7 +55,7 @@ if ( -d $ARGV[0] ) {
 
     @files = map { $ARGV[0] . '/' . $_ } @set_leb36;
     my $file_count = scalar(@files);
-    print STDERR "$file_count LEB36 files found in directory $ARGV[0]\n";
+    print "$file_count LEB36 files found in directory $ARGV[0]\n";
 }
 
 my $UNR = 0;    # "universal number of records
@@ -183,5 +183,5 @@ else {
     }
 }
 
-print STDERR "$UNR records processed\n";
+print "$UNR records processed\n";
 0;

@@ -10,7 +10,7 @@ use warnings;
 use Cwd;
 use DBI;
 use List::Util qw[min max];
-use POSIX qw(strftime);
+use POSIX "strftime";
 
 use FindBin;
 use File::Basename;
@@ -18,7 +18,7 @@ use File::Basename;
 use lib "$FindBin::RealBin/lib";
 use vutil qw(get_config get_dbh gen_exec_array_cb vs_db_insert set_statistics);
 
-print strftime( "\n\nstart: %F %T\n\n\n", localtime );
+print strftime( "Start: %F %T\n\n", localtime );
 
 my $argc = @ARGV;
 die "Usage: map_dup.pl expects 2 arguments.\n"
@@ -185,8 +185,7 @@ while ( my @data = $readsWithMultTRsMappedMultRefs_sth->fetchrow_array() ) {
                 @mdup = ();
             }
             else {
-                die
-                    "Something went wrong inserting, but somehow wasn't caught!\n";
+                die "Something went wrong inserting, but somehow wasn't caught!\n";
             }
         }
 
@@ -215,8 +214,7 @@ if ( @mdup ) {
         @mdup = ();
     }
     else {
-        die
-            "Something went wrong inserting, but somehow wasn't caught!\n";
+        die "Something went wrong inserting, but somehow wasn't caught!\n";
     }
 }
 
@@ -234,8 +232,9 @@ $updfromtable = $dbh->do($query)
 $dbh->do("PRAGMA foreign_keys = ON");
 
 if ( $updfromtable != $deleted ) {
-    die
-        "Updated bbb=0 number of entries($updfromtable) not equal to the number of deleted counter ($deleted), aborting! You might need to rerun from step 12.";
+    die "Updated bbb=0 number of entries ($updfromtable) not equal to"
+        . " the number of deleted counter ($deleted), aborting!\n"
+        . "You might need to rerun from step 12.";
 }
 
 # update BBB on stats
@@ -244,10 +243,10 @@ $dbh->do(q{UPDATE stats SET BBB=(SELECT count(*) FROM map WHERE bbb=1)})
 
 $dbh->disconnect();
 
-printf STDERR "\n\n%d entries deleted!\n", $deleted;
-printf STDERR "%d reads deleted!\n",       $ReadsDeleted;
+printf "%d entries deleted!\n", $deleted;
+printf "%d reads deleted!\n",   $ReadsDeleted;
 
-print STDERR strftime( "\n\nend: %F %T\n\n\n", localtime );
+warn strftime( "\nEnd: %F %T\n\n", localtime );
 
 1;
 

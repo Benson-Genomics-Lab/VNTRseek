@@ -5,14 +5,14 @@ use strict;
 use warnings;
 use Cwd;
 use DBI;
-use POSIX qw(strftime);
+use POSIX "strftime";
 use FindBin;
 use File::Basename;
 use File::Path qw(make_path);
 use lib "$FindBin::RealBin/lib";
 use vutil qw(get_config get_dbh set_statistics);
 
-warn strftime("\n\nstart: %F %T\n\n", localtime);
+warn strftime("Start: %F %T\n\n", localtime);
 
 die "Usage: run_edges.pl expects 7 arguments.\n"
     unless scalar @ARGV >= 7;
@@ -152,7 +152,7 @@ $coconut++; # since we used 0 indexing
 print STDOUT
     "Processing complete -- processed $clusters_processed cluster(s).\n"
     . "  -- used $coconut chunks.\n";
-warn strftime("\n\nend proclu: %F %T\n\n", localtime);
+warn strftime("\nEnd proclu: %F %T\n\n", localtime);
 chdir($curdir);
 
 
@@ -362,7 +362,7 @@ set_statistics(
 );
 
 print STDOUT "Finished. Deleted from rank using temptable: $delfromtable\n";
-warn strftime( "\n\nend: %F %T\n\n", localtime );
+warn strftime( "\nEnd: %F %T\n\n", localtime );
 
 1;
 

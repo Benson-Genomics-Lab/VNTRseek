@@ -6,13 +6,12 @@
 use strict;
 use warnings;
 use Cwd;
-use POSIX qw(strftime);
+use POSIX "strftime";
 
-warn strftime( "\n\nstart: %F %T\n\n", localtime );
+warn strftime( "Start: %F %T\n\n", localtime );
 
 die "Useage: checkl3b36.pl expects 1 argument.\n"
     unless @ARGV;
-
 
 my $curdir =  getcwd();
 my $tgz_dir = $ARGV[0];
@@ -25,13 +24,13 @@ my @tarballs = grep(/\.(?:leb36)$/, readdir(DIR));
 closedir(DIR);
 
 my $tarball_count = @tarballs;
-print STDERR "$tarball_count supported files found in $tgz_dir\n";
+print "$tarball_count supported files found in $tgz_dir\n";
 die "Exiting\n" if $tarball_count == 0;
 
 # enter dir
 chdir($tgz_dir);
 
-print STDERR "Checking read leb36 files...\n";
+print "Checking read leb36 files...\n";
 my %uhash = ();
 foreach my $ifile (@tarballs) {
   open FILE, "<$ifile" or die $!;
@@ -44,6 +43,4 @@ foreach my $ifile (@tarballs) {
   close FILE;
 }
 
-%uhash = ();
-
-warn strftime( "\n\nend: %F %T\n\n", localtime );
+warn strftime( "\nEnd: %F %T\n\n", localtime );

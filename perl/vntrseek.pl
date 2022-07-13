@@ -129,11 +129,19 @@ if ($opts{'GEN_CONFIG'}) {
     exit;
 }
 
+
 # Load configuration files and combine with CLI args.
 # Make sure all the configuration options are safe for running.
-# Write out a terse config file to output directory.
 %opts = get_config(%opts);
 validate_config();
+
+# the output of the pipeline, ex: "/bfdisk/vntr_$DBSUFFIX";
+my $output_folder = "$opts{OUTPUT_ROOT}/vntr_$opts{DBSUFFIX}";
+mkdir $output_folder unless -e $output_folder;
+
+# Write out a terse config file to output directory.
+my $config_file = print_config();
+
 
 # enter install directory
 die("Cannot access install directory ($install_dir).\n")
@@ -176,11 +184,6 @@ if (exists $opts{'STATS'}) {
 }
 
 my $timestart;
-
-# will be created at the output root by the pipeline, ex: "/bfdisk/vntr_$DBSUFFIX";
-my $output_folder = "$opts{OUTPUT_ROOT}/vntr_$opts{DBSUFFIX}";    # DO NOT CHANGE, this
-mkdir $output_folder unless -e $output_folder;
-my $config_file = print_config();
 
 # this is where TRF output will go converted to leb36 format
 my $read_profiles_folder = "$output_folder/data_out/";
@@ -384,14 +387,14 @@ if ( $STEP == 0 ) {
 
     $timestart = time();
 
-    print STDERR "Executing step #$STEP (creating database)...\n";
+    print STDERR "Executing step #$STEP (creating database).\n";
 
     # This function checks if the output directory exists,
     # and creates it if it doesn't exist.
     write_sqlite();
 
     if ( !-e "$read_profiles_folder" && !mkdir("$read_profiles_folder") ) {
-        warn "\nWarning: Failed to create output directory!\n";
+        warn "Warning: Failed to create output directory!\n";
     }
 
     set_statistics(
@@ -405,7 +408,7 @@ if ( $STEP == 0 ) {
 
     set_datetime("DATE_MYSQLCREATE");
 
-    warn "done!\n";
+    print STDERR "done!\n";
 
     if    ( $STEPEND == $STEP ) { $STEP = 100; }
     elsif ($DOALLSTEPS)         { $STEP = 1; }
@@ -415,8 +418,8 @@ if ( $STEP == 0 ) {
 if ( $STEP == 1 ) {
     unlink glob "${read_profiles_folder}/*.clu";
 
-    warn "\n\nExecuting step #$STEP (searching for tandem repeats in reads,"
-         . " producing profiles and sorting)...\n";
+    print STDERR "Executing step #$STEP (searching for tandem repeats in reads,"
+         . " producing profiles and sorting)...\n\n";
     my $extra_param  = ( $opts{STRIP_454_KEYTAGS} ) ? '-s' : '';
     my $extra_param2 = ( $opts{IS_PAIRED_READS} )   ? '-r' : '';
 
@@ -474,7 +477,7 @@ if ( $STEP == 1 ) {
 
 if ( $STEP == 2 ) {
 
-    print STDERR "\n\nExecuting step #$STEP (reassigning IDs to repeats)...";
+    print STDERR "\n\nExecuting step #$STEP (reassigning IDs to repeats).\n";
     $timestart = time();
 
     system("./renumber.pl $read_profiles_folder");
@@ -799,19 +802,16 @@ if ( $STEP == 7 ) {
 if ( $STEP == 8 ) {
 
     print STDERR
-        "\n\nExecuting step #$STEP (inserting READS flanks into database)...";
+        "\nExecuting step #$STEP (inserting READS flanks into database).\n";
 
     $timestart = time();
-    my $extra_param = ( $opts{STRIP_454_KEYTAGS} ) ? '1' : '0';
 
     # Get rotindex saved in db
     my $dbh = get_ref_dbh( $opts{REFERENCE}, { redo => $opts{REDO_REFDB} } );
-    my $get_rotindex = q{SELECT rotindex FROM files};
-    my ($rotindex_str) = $dbh->selectrow_array($get_rotindex);
+    my ($rotindex_str) = $dbh->selectrow_array('SELECT rotindex FROM files');
     $dbh->disconnect();
-    die
-        "Error getting rotindex file. Try rerunning with --redo_refdb option.\n"
-        unless ($rotindex_str);
+    die "Error getting rotindex file. Try rerunning with --redo_refdb option.\n"
+        unless $rotindex_str;
 
     my $reference_folder = File::Temp->newdir();
     open my $tmp_rotindex, ">", "$reference_folder/reference.leb36.rotindex";
@@ -828,7 +828,7 @@ if ( $STEP == 8 ) {
         "$opts{INPUT_DIR}",
         "$read_profiles_folder_clean",
         "$reference_folder/reference.leb36.rotindex",
-        "$extra_param",
+        "$opts{STRIP_454_KEYTAGS}",
         "$config_file",
         "$opts{TMPDIR}",
         "$opts{IS_PAIRED_READS}");
@@ -1229,14 +1229,13 @@ if ( $STEP == 19 ) {
     set_datetime("DATE_REPORTS");
 
     # Create reduced database
-    my $opb = "$opts{OUTPUT_ROOT}/vntr_$opts{DBSUFFIX}";
-    my $dbfile = "$opb/$opts{DBSUFFIX}.db";
-    my $dbfile2 = "$opb/$opts{DBSUFFIX}_rl$opts{READ_LENGTH}.db";
-    print STDOUT "Finalizing:\n$dbfile\nbeing reduced into\n$dbfile2\n";
+    my $dbfile = "$output_folder/$opts{DBSUFFIX}.db";
+    my $dbfile2 = "$output_folder/$opts{DBSUFFIX}_rl$opts{READ_LENGTH}.db";
+    print "Finalizing:\n$dbfile\nbeing reduced into\n$dbfile2\n";
     system("sqlite3 $dbfile < reduced_db.sql");
     system("mv temp_reduced.db $dbfile2");
 
     print STDERR "done!\n";
 }
 
-print STDERR "\n\nFinished!\n\n";
+print STDERR "\nFinished!";

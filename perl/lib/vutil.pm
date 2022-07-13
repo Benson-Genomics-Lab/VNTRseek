@@ -17,8 +17,8 @@ use base 'Exporter';
 our @EXPORT_OK = qw(trim read_config_file get_config validate_config
     set_credentials get_dbh get_ref_dbh make_refseq_db load_refprofiles_db
     run_redund write_sqlite set_statistics get_statistics set_datetime
-    print_config trim create_blank_file
-    sqlite_install_RC_function gen_exec_array_cb vs_db_insert);
+    print_config trim create_blank_file sqlite_install_RC_function
+    gen_exec_array_cb vs_db_insert);
 
 # vutil.pm
 # author: Yevgeniy Gelfand, Yozen Hernandez
@@ -1211,8 +1211,7 @@ sub sqlite_install_RC_function {
 ################################################################
 sub gen_exec_array_cb {
     my $arr_ref = shift
-        or croak "Error: Must specify an array reference. "
-        . "(Developer made a mistake here)";
+        or croak "Error: Must specify an array reference.\n";
 
     my $arr_idx = 0;
     return sub {
@@ -1239,7 +1238,7 @@ sub vs_db_insert {
     my ( $dbh, $sth, $cb_or_sth, $errstr ) = @_;
     my ( $tuples, @tuple_status );
 
-    $dbh->begin_work;
+    $dbh->begin_work();
     try {
         $tuples = $sth->execute_array(
             {   ArrayTupleFetch  => $cb_or_sth,
@@ -1267,7 +1266,7 @@ sub vs_db_insert {
                 . Set::IntSpan->new($rows)->run_list() . ")\n";
         }
 
-        eval { $dbh->rollback; };
+        eval { $dbh->rollback(); };
         if ($@) {
             warn "Database rollback failed.\n";
         }
@@ -1275,7 +1274,7 @@ sub vs_db_insert {
 
     croak "$errstr\n"
         unless ($tuples);
-    $dbh->commit;
+    $dbh->commit();
     return $tuples;
 }
 

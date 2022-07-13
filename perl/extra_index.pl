@@ -13,10 +13,7 @@ use FindBin;
 use lib "$FindBin::RealBin/lib";
 use vutil qw(trim get_config get_dbh set_statistics);
 
-# Unused
-#my $FASTA = 1;
-
-warn strftime( "\n\nstart: %F %T\n\n", localtime );
+warn strftime( "Start: %F %T\n\n", localtime );
 
 my $argc = @ARGV;
 die "Usage: extra_index.pl expects 2 arguments.\n"
@@ -47,17 +44,16 @@ my $sql_clause = q{
     replnk ON replnk.rid=map.readid INNER JOIN
     fasta_reads on fasta_reads.sid=replnk.sid
   ORDER BY map.refid,map.readid};
-($num) = $dbh->selectrow_arrayref( q{SELECT COUNT(*) } . $sql_clause )
+($num) = $dbh->selectrow_array( q{SELECT COUNT(*) } . $sql_clause )
     or die "Couldn't execute statement: " . $dbh->errstr;
-$sth
-    = $dbh->prepare(
+$sth = $dbh->prepare(
     q{SELECT map.refid, map.readid, replnk.sid, replnk.first, replnk.last, replnk.copynum, replnk.patsize, replnk.pattern,fasta_reads.dna}
         . $sql_clause )
     or die "Couldn't prepare statement: " . $dbh->errstr;
 
 $sth->execute() or die "Couldn't execute: " . $sth->errstr;
 
-print "\n best best best records: $num\n";
+print "Best best best records: $num\n";
 
 my $oldref  = -1;
 my $oldread = -1;
@@ -69,7 +65,6 @@ while ( my @data = $sth->fetchrow_array() ) {
     if ( $data[0] != $oldref ) {
         if ( $i != 0 ) { close($fh); }
         $nrefs++;
-        print "\n$nrefs";
         open $fh, ">$folder/$data[0].seq" or die $!;
     }
     print $fh "$data[1] $data[2] $data[3] $data[4]";
@@ -83,13 +78,13 @@ while ( my @data = $sth->fetchrow_array() ) {
 
 close($fh) if ($fh);
 
-$sth->finish;
-
-print "\n\nProcessing complete (extra_index.pl), $nrefs files created.\n";
-
-warn strftime( "\n\nend: %F %T\n\n", localtime );
-#
+$sth->finish();
 $dbh->disconnect();
+
+print "Processing complete (extra_index.pl), $nrefs files created.\n";
+
+warn strftime( "\nEnd: %F %T\n\n", localtime );
+
 
 1;
 

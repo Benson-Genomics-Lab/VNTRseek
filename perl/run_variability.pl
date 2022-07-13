@@ -1,7 +1,5 @@
 #!/usr/bin/env perl
 
-my $RECORDS_PER_INFILE_INSERT = 100000;
-
 use strict;
 use warnings;
 use List::Util qw[min max];
@@ -24,7 +22,7 @@ sub nowhitespace($) {
 }
 
 
-warn strftime( "\n\nstart: %F %T\n\n", localtime );
+warn strftime( "Start: %F %T\n\n", localtime );
 
 my $argc = @ARGV;
 die "Usage: run_variability.pl expects 5 arguments.\n"
@@ -40,6 +38,8 @@ my $TEMPDIR            = $ARGV[4];
 my %run_conf = get_config("CONFIG", $cnf);
 my $dbh = get_dbh()
     or die "Could not connect to database: $DBI::errstr";
+
+my $RECORDS_PER_INFILE_INSERT = 100000;
 
 my $updatedClustersCount = 0;
 my $updatedRefsCount     = 0;
@@ -237,7 +237,6 @@ while (<$fh>) {
         $readidold = $readid;
     }
     $sth8->finish;
-    print STDERR "\nprocessed: $clusters_processed\n\n";
 
     # do for 1st 10 clusters for now
     # if ($clusters_processed >= 20) { last; }
