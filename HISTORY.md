@@ -25,6 +25,7 @@
 - changed `STDERR`s to `STDOUT`
 - fixed VNTR vcf output skipping first entry
 - determined new redund has affected fasta_reads table
+- added output database minimization to cleanup
 - removed obselete scripts
 - cleaned out obselescent commented code
 - updated help files
