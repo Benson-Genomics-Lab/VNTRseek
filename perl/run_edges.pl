@@ -126,26 +126,24 @@ while ((my $pid = wait) != -1) {
     # check return value   # i don't think these do anything since it only dies or exits 0.
     my ($rc, $sig, $core) = ($? >> 8, $? & 127, $? & 128);
     if ($core) {
-        print STDERR "proclu process $pid dumped core\n";
+        warn "proclu process $pid dumped core\n";
         exit(1000);
     }
     elsif ($sig == 9) {
-        print STDERR "proclu process $pid was murdered!\n";
+        warn "proclu process $pid was murdered!\n";
         exit(1001);
     }
     elsif ($rc != 0) {
-        print STDERR "proclu process $pid has returned $rc!\n";
+        warn "proclu process $pid has returned $rc!\n";
         exit($rc);
     }
 
-    if ($p{$pid}) {
-        # one instance has finished processing -- start a new one
-        delete $p{$pid};
-        $p{fork_proclu()} = 1;
-    }
-    else {
-        die "Unknown process $pid finished\n";
-    }
+    # KA: not sure why we're checking this
+    die "Unrelated process $pid finished?\n" unless $p{$pid};
+
+    # one instance has finished processing -- start a new one
+    delete $p{$pid};
+    $p{fork_proclu()} = 1;
 }
 $sth->finish();
 $coconut++; # since we used 0 indexing

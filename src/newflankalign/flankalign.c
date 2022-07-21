@@ -762,8 +762,8 @@ int main( int argc, char *argv[] ) {
             PARR[ThreadCounter - 1] = pID;
 
             // Code below only executed by parent process
-            printf( "processing: %d_%d (pid: %d) threadcounter: %d\n", a1, a2,
-              pID, ThreadCounter );
+            //printf( "processing: %d_%d (pid: %d) threadcounter: %d\n", a1, a2,
+            //  pID, ThreadCounter );
 
             /* child has its own copy now, so it's ok to destroy for parent */
             EasyListDestroy( ref_list );
@@ -778,8 +778,8 @@ int main( int argc, char *argv[] ) {
                 if ( -1 == retid )
                     doCriticalErrorAndQuit(
                       "\n\nFlankAlign - wait function returned -1. Aborting!" );
-                else
-                    printf( "\tterminated: %d\n", retid );
+                //else
+                //    printf( "\tterminated: %d\n", retid );
 
                 for ( i = 1; i < ThreadCounter; i++ ) {
                     PARR[i - 1] = PARR[i];

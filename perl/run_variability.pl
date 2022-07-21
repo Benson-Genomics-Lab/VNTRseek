@@ -44,7 +44,7 @@ my $RECORDS_PER_INFILE_INSERT = 100000;
 my $updatedClustersCount = 0;
 my $updatedRefsCount     = 0;
 
-my ( $sth, $sth1, $sth6, $sth7, $sth8, $query );
+my ( $sth, $sth1, $sth2, $sth3, $sth4, $query );
 my $TEMPFILE;
 my $TEMP_CLNK;
 
@@ -63,19 +63,18 @@ $dbh->do( "DELETE FROM vntr_support" )
 
 $dbh->do(
     q{CREATE TEMPORARY TABLE mapr (
-  `refid` INT(11) NOT NULL,
-  `readid` INT(11) NOT NULL,
-  PRIMARY KEY (refid,readid))}
+      `refid` INT(11) NOT NULL,
+      `readid` INT(11) NOT NULL,
+      PRIMARY KEY (refid,readid))}
 );
 
 # create temp table for clusterlnk table updates and update clusterlnk table
 $dbh->do(
     q{CREATE TEMPORARY TABLE ctrlnk (
-    `clusterid` INT(11) NOT NULL,
-    `repeatid` INT(11) NOT NULL,
-    `change` INT(11) NOT NULL,
-    PRIMARY KEY (clusterid,repeatid)
-    )}
+      `clusterid` INT(11) NOT NULL,
+      `repeatid` INT(11) NOT NULL,
+      `change` INT(11) NOT NULL,
+      PRIMARY KEY (clusterid,repeatid))}
 );
 $dbh->commit;
 
@@ -92,11 +91,11 @@ $sth1 = $read_dbh->prepare(
   WHERE rid = ?}
 ) or die "Couldn't prepare statement: " . $dbh->errstr;
 
-$sth6 = $dbh->prepare(q{INSERT INTO ctrlnk VALUES(?, ?, ?)})
+$sth2 = $dbh->prepare(q{INSERT INTO ctrlnk VALUES(?, ?, ?)})
     or die "Couldn't prepare statement: " . $dbh->errstr;
-$sth7 = $dbh->prepare(q{INSERT INTO mapr VALUES(?, ?)})
+$sth3 = $dbh->prepare(q{INSERT INTO mapr VALUES(?, ?)})
     or die "Couldn't prepare statement: " . $dbh->errstr;
-$sth8 = $read_dbh->prepare(
+$sth4 = $read_dbh->prepare(
     q{SELECT map.refid, map.readid from clusterlnk
   INNER JOIN map ON map.refid=-clusterlnk.repeatid
   WHERE map.bbb=1 AND clusterlnk.clusterid=?
@@ -154,9 +153,7 @@ while (<$fh>) {
             my @data = $sth->fetchrow_array();
 
             if ( $sth->rows == 0 ) {
-                print STDERR
-                    "No record in database for entry `$val'. Aborting!\n\n";
-                exit(1);
+                die "No record in database for entry `$val'. Aborting!\n";
             }
 
             $ASKLENGTH{$val}
@@ -174,9 +171,7 @@ while (<$fh>) {
             my @data = $sth1->fetchrow_array();
 
             if ( $sth1->rows == 0 ) {
-                print STDERR
-                    "No record in database for entry `$val'. Aborting!\n";
-                exit(1);
+                die "No record in database for entry `$val'. Aborting!\n";
             }
 
             $readlen = length( nowhitespace( $data[1] ) );
@@ -200,9 +195,9 @@ while (<$fh>) {
     my %READVECTOR = ();
     my %REFHASH    = ();
     my $readidold  = -1;
-    $sth8->execute($clusters_processed)    # Execute the query
-        or die "Couldn't execute statement: " . $sth8->errstr;
-    while ( my @data = $sth8->fetchrow_array() ) {
+    $sth4->execute($clusters_processed)    # Execute the query
+        or die "Couldn't execute statement: " . $sth4->errstr;
+    while ( my @data = $sth4->fetchrow_array() ) {
         my $readid;
         my $refid;
         my $readlen;
@@ -236,29 +231,21 @@ while (<$fh>) {
 
         $readidold = $readid;
     }
-    $sth8->finish;
-
-    # do for 1st 10 clusters for now
-    # if ($clusters_processed >= 20) { last; }
+    $sth4->finish;
 
     # insert database records (cluster table)
-    #print "VYN:  ";
-    #print  VNTR_YES_NO(\%REFCOPIES,\%READCOPIES,\%READVECTOR);
-
-    my $vYes
-        = VNTR_YES_NO( \$TEMPFILE, \$TEMP_CLNK, \%REFCOPIES, \%READCOPIES,
-        \%READVECTOR, \%REFHASH, $clusters_processed );
+    my $vYes = VNTR_YES_NO( \$TEMPFILE, \$TEMP_CLNK, \%REFCOPIES, \%READCOPIES,
+                            \%READVECTOR, \%REFHASH, $clusters_processed );
 
     $updatedClustersCount += $vYes;
-
 }
 
 warn "VNTR_SUPPORT hash:\n", Dumper( \%VNTR_SUPPORT ), "\n"
     if ( $ENV{DEBUG} );
 
 close($fh);
-$sth->finish;
-$sth1->finish;
+$sth->finish();
+$sth1->finish();
 
 # $dbh->begin_work;
 my $updCLNKfromfile = $dbh->do(
@@ -315,8 +302,7 @@ foreach my $key ( keys %VNTR_REF ) {
             @vntrs_supported = ();
         }
         else {
-            die
-                "Something went wrong inserting, but somehow wasn't caught!\n";
+            die "Something went wrong inserting, but somehow wasn't caught!\n";
         }
     }
 }
@@ -363,26 +349,25 @@ $dbh->do("PRAGMA foreign_keys = ON");
 $dbh->disconnect();
 
 if ( $supInsert != $supcounter ) {
-    die
-        "Inserted number of vntr_support entries($supInsert) not equal to the number of inserted counter ($supcounter), aborting!";
+    die "Inserted number of vntr_support entries($supInsert) not equal to"
+        . " the number of inserted counter ($supcounter), aborting!";
 }
 if ( $updfromtable != $processed ) {
-    die
-        "Updated number of map entries($updfromtable) not equal to the number of inserted counter ($processed), aborting!";
+    die "Updated number of map entries($updfromtable) not equal to"
+        . " the number of inserted counter ($processed), aborting!";
 }
 if ( $updCLNKfromfile != $cl_processed ) {
-    die
-        "Updated number of cluster entries($updCLNKfromfile) not equal to the number of inserted counter ($cl_processed), aborting!";
+    die "Updated number of cluster entries($updCLNKfromfile) not equal to"
+        . " the number of inserted counter ($cl_processed), aborting!";
 }
 if ( $UpdClusFromFile != $InsClusToFile ) {
-    die
-        "Updated number of clusterlnk entries($UpdClusFromFile) not equal to the number of inserted counter ($InsClusToFile), aborting!";
+    die "Updated number of clusterlnk entries($UpdClusFromFile) not equal to"
+        . " the number of inserted counter ($InsClusToFile), aborting!";
 }
 
-print STDERR "\n\n";
 
-print STDERR
-    "Processing complete -- processed $clusters_processed cluster(s), support entries created = $supInsert.\n";
+print "Processing complete -- processed $clusters_processed cluster(s),"
+    . " support entries created = $supInsert.\n";
 
 set_statistics(
     {   CLUST_NUMBER_OF_REFS_WITH_PREDICTED_VNTR     => $updCLNKfromfile,
@@ -390,7 +375,7 @@ set_statistics(
     }
 );
 
-warn strftime( "\n\nend: %F %T\n\n", localtime );
+warn strftime( "\nEnd: %F %T\n\n", localtime );
 
 1;
 
@@ -462,13 +447,8 @@ sub VNTR_YES_NO {
 
     my $varyes = 0;
     my $change = 0;
-
     my (%REF_UPDATED) = ();
 
-    #print "\nVNTR_YES_NO:";
-
-    # for each read in map file
-    # warn Dumper( \%readhash );
     my @rows;
     while ( my ( $key, @temp ) = each(%readhash) ) {
 
@@ -479,27 +459,18 @@ sub VNTR_YES_NO {
 
             $valread = $reads{$key};
 
-            #print STDERR "\n$key($valread) =>";
-
-    # for each references listed in map file as being associated with the read
-    #foreach my $val (@{$temp[0]}) {
             foreach my $val ( @{ $readhash{$key} } ) {
 
                 if ( exists $refs{$val} ) {
                     $valref = $refs{$val};
                 }
                 else {
-                    print "Undefined reference `$val`. Aborting!\n";
-                    exit(1);
+                    die "Undefined reference `$val`. Aborting!\n";
                 }
 
-                #print STDERR " ".$val."($valref)";
-
-              # print "$valRead - $valRef\n";
-              #if (($valread >= ($valref-.5)) && ($valread <= ($valref+.5))) {
+                #if (($valread >= ($valref-.5)) && ($valread <= ($valref+.5))) {
                 if (   ( $valread > ( $valref - .8 ) )
-                    && ( $valread < ( $valref + .8 ) ) )
-                {
+                    && ( $valread < ( $valref + .8 ) ) ) {
 
                     # add support
                     #add_support($val, 1, int(abs($valref) + 0.5), $valref );
@@ -528,22 +499,15 @@ sub VNTR_YES_NO {
             # this would be incremented to 0 if there is a read found later on
             # add_zero_support($val, 1, int(abs($valref) + 0.5) );
 
-                    #print "\t$clusterid: $refid\n";
-
                     $change = int( abs( $valread - $valref ) + 0.5 );
 
                     if ( !exists $REF_UPDATED{$val}
                         || $change > $REF_UPDATED{$val} )
                     {
 
-#$sth3->execute($change,$clusterid,$val)             # set the reserved field on reference
-#   or die "Couldn't execute statement: " . $sth3->errstr;
 
                         $REF_UPDATED{$val} = $change;
                     }
-
-#$sth7->execute(-$val,$key)             # set the reserved field on map read, (added 11/19/2010)
-#    or die "Couldn't execute statement: " . $sth7->errstr;
 
                     if ( $ENV{DEBUG} ) {
                         warn "mapr insert: " . -$val . ", $key\n";
@@ -553,32 +517,26 @@ sub VNTR_YES_NO {
 
                     if ( @rows % $RECORDS_PER_INFILE_INSERT == 0 ) {
                         my $cb   = gen_exec_array_cb( \@rows );
-                        my $rows = vs_db_insert( $dbh, $sth7, $cb,
+                        my $rows = vs_db_insert( $dbh, $sth3, $cb,
                             "Error when inserting entries into our mapr table.\n"
                         );
                         if ($rows) {
                             @rows = ();
                         }
                         else {
-                            die
-                                "Something went wrong inserting, but somehow wasn't caught!\n";
+                            die "Something went wrong inserting, but somehow wasn't caught!\n";
                         }
                     }
                 }
-
             }
-
-            #print "\n";
-
         }    # end of exists
-
     }    # end of loop
 
     # TODO Optimize for SQLite: this function is called for every cluster,
     # might be better to preserve array for accumulating rows across calls
     if (@rows) {
         my $cb   = gen_exec_array_cb( \@rows );
-        my $rows = vs_db_insert( $dbh, $sth7, $cb,
+        my $rows = vs_db_insert( $dbh, $sth3, $cb,
             "Error when inserting entries into our mapr table.\n" );
         if ($rows) {
             @rows = ();
@@ -611,7 +569,7 @@ sub VNTR_YES_NO {
     # TODO: See TODO above for optimizing for SQLite
     if (@rows) {
         my $cb   = gen_exec_array_cb( \@rows );
-        my $rows = vs_db_insert( $dbh, $sth6, $cb,
+        my $rows = vs_db_insert( $dbh, $sth2, $cb,
             "Error when inserting entries into our ctrlnk table.\n" );
         if ($rows) {
             @rows = ();
@@ -622,8 +580,6 @@ sub VNTR_YES_NO {
         }
     }
 
-    # print "\nNOT VARIABLE\n\n";
     return $varyes;
-
 }    # end of func
 

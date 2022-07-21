@@ -5,7 +5,7 @@ use warnings;
 use Cwd;
 use DBI;
 use List::Util qw[min max];
-use POSIX qw(strftime);
+use POSIX "strftime";
 use Carp qw(croak carp);
 use FindBin;
 use File::Basename;
@@ -29,17 +29,16 @@ final reports and VCF files
 
 # Argument parsing & set up
 my $argc = @ARGV;
-die "Usage: updaterefs.pl expects 7 arguments.\n"
-    unless $argc >= 7;
+die "Usage: updaterefs.pl expects 6 arguments.\n"
+    unless $argc >= 6;
 
 my $curdir        = getcwd();
 my $readpf        = $ARGV[0]; # read_profiles_folder
 my $rpfc          = $ARGV[1]; # read_profiles_folder_clean
 my $DBSUFFIX      = $ARGV[2]; # dbname
 my $cnf           = $ARGV[3]; # config_file
-my $filerep       = $ARGV[4]; # file_representative
-my $result_prefix = $ARGV[5]; # latexfile
-my $VERSION       = $ARGV[6]; # VERSION
+my $result_prefix = $ARGV[4]; # latexfile
+my $VERSION       = $ARGV[5]; # VERSION
 
 my %run_conf = get_config("CONFIG", $cnf);
 my ( $HTTPSERVER, $MIN_SUPPORT_REQUIRED, $TEMPDIR )
@@ -328,9 +327,10 @@ sub print_vcf {
         my $vcf_rec = make_vcf_rec( \%row );
 
         # Only print record to spanN file if VNTR
-        ( $row{num_alleles} > 1 || !$row{refdetected} )
-            && $vntr_count++
-            && print $spanN_vcffile $vcf_rec;
+        if ( $row{num_alleles} > 1 || !$row{refdetected} ) {
+            $vntr_count++;
+            print $spanN_vcffile $vcf_rec;
+        }
         print $allwithsupport_vcffile $vcf_rec;
     }
 
@@ -503,7 +503,7 @@ sub print_distr {
 
         $maxval = max( $maxval, $val1 );
     }
-    warn "TOTAL, $tall, $tspan1, \n";
+    print "TOTAL, $tall, $tspan1, \n";
     print $distrfh "TOTAL, $tall, $tspan1, "
         . int( 100 * $tspan1 / $tall )
         . "\%, $tspanN, "
@@ -1917,23 +1917,6 @@ sub calc_entropy {
 my $num;
 my $i;
 
-# read representative file
-my %DHASH   = ();
-my %REPHASH = ();
-
-#open (MYFILE, "$filerep") or die "Can't open for reading $filerep.";
-#while (<MYFILE>) {
-#
-#  if ($_ =~ /(\d+)_(\d+)\W(.+)\W(.+)/i) {
-#    $id=$1;
-#    $fd=$3;
-#    $pt=$4;
-#print $id. " " . $fd. " ". $pt . "\n";
-#    $DHASH{$id} = $fd;
-#    $REPHASH{$id} = $pt;
-#  }
-#}
-
 set_statistics( { N_MIN_SUPPORT => $MIN_SUPPORT_REQUIRED } );
 
 my $dbh = get_dbh( { userefdb => 1 } )
@@ -1980,7 +1963,7 @@ my $get_supported_reftrs_sth = $dbh->prepare(
     FROM temp.vntr_support}
 ) or die "Couldn't prepare statement: " . $dbh->errstr;
 
-warn "\nUpdating fasta_ref_reps table...\n";
+print "Updating fasta_ref_reps table.\n";
 
 my $query = qq{INSERT INTO main.fasta_ref_reps
         (rid, alleles_sup, allele_sup_same_as_ref, entropy,
@@ -2136,7 +2119,7 @@ if ( $updfromtable != $supported_vntr_count ) {
 }
 
 # updating stats table
-print STDERR "Updating stats table...\n";
+print "Updating stats table.\n";
 my $update_stats_sth = $dbh->prepare(
     q{UPDATE stats SET NUMBER_REFS_SINGLE_REF_CLUSTER_WITH_READS_MAPPED=(
     SELECT COUNT(*)
@@ -2242,20 +2225,16 @@ $dbh->do("PRAGMA temp_store = 0");
 # );
 # Optimize queries
 $dbh->do("PRAGMA main.optimize");
-$dbh->disconnect;
+$dbh->disconnect();
 
-warn "Producing output LaTeX file...\n";
+print "Producing output LaTeX file.\n";
 print_latex($ReadTRsSupport);
 
-warn "Producing distribution file...\n";
+print "Producing distribution file.\n";
 print_distr();
 
 # Print VCF
-warn "Producing VCF...\n";
+print "Producing VCFs.\n";
 print_vcf();
 
-# All with support
-# warn "Producing VCF (all with support)...\n";
-# print_vcf(1);
-
-warn "Done!\n";
+print "Done!\n";

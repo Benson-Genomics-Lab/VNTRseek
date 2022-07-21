@@ -155,7 +155,7 @@ else {
                 chomp $index_line;
                 die "Too few lines in $input.index\n"
                     if not defined $index_line;
-                @index_line = split /\t+/, $index_line; # split on white space
+                @index_line = split /\t+/, $index_line; # split on tabs
                 die
                     "Numbers differ at line $UNR in $input.index and $input.leb36\n"
                     if $leb36_line[0] != $index_line[0];

@@ -175,11 +175,6 @@ sub _init_input_list {
             . " supported files ($input_format format, $compression_msg) found in $self->{input_dir}\n";
     }
 
-    # if ( $ENV{DEBUG} ) {
-    #     use Data::Dumper;
-    #     say Dumper( \@filenames );
-    # }
-
     $self->{num_inputs}   = scalar @filenames;
     $self->{inputs}       = \@filenames;
     $self->{input_format} = $input_format;
@@ -203,10 +198,6 @@ sub _next_reader {
     my $file_index = $self->{num_inputs} - @{ $self->{inputs} };
     my $next_input = shift( @{ $self->{inputs} } );
 
-    # if ( $ENV{DEBUG} ) {
-    #     use Data::Dumper;
-    #     say Dumper( \$next_input );
-    # }
     if ($next_input) {
         return $self->{_reader}->(
             decom       => $self->{decom},
@@ -291,7 +282,7 @@ sub get_reads {
 
     # if (@read_list) {
     #     my $start_id = ( $split_index * $self->{reads_split} ) + 1;
-    #     say "Queuing worker: $split_index, starting id: $start_id";
+    #     #print "Queuing worker: $split_index, starting id: $start_id\n";
     #     my $f = $read_function->call(
     #         args => [
     #             {   output_prefix    => "$self->{output_dir}/$split_index",
@@ -433,14 +424,14 @@ sub run_trf {
             }
 
             if ( $read_href->{$header} ) {
-                say $reads_fh "$header\t" . $read_href->{$header};
+                print $reads_fh "$header\t" . $read_href->{$header} . "\n";
                 $read_href->{$header} = "";
             }
         }
 
         # .reads file gets one more line with the total number
         # of reads we read (different from reads with TRs count)
-        # say $reads_fh "totalreads\t$num_reads";
+        # print $reads_fh "totalreads\t$num_reads\n";
         close $reads_fh;
 
         # Get stats from indexhist file
@@ -617,9 +608,6 @@ Requires samtools as an external dependency.
 
 sub read_bam {
     my %args = @_;
-
-    # use Data::Dumper;
-    # say "Input: " . Dumper($args{input});
 
     # warn "$current_idx\n";
     my $cmdhash = $args{input};

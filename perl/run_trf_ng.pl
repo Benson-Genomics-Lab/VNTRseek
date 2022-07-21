@@ -104,9 +104,9 @@ while ( my $reads = $seq_reader->get_reads() ) {
 }
 
 warn "Finished reading. Waiting for TRF processes...\n";
-$pm->wait_all_children;
+$pm->wait_all_children();
 
 warn
     "Processing complete -- processed $split_index file(s) and $trf_res{reads} reads.\n";
 
-say join( ",", map {"$_:$trf_res{$_}"} keys %trf_res );
+print join( ",", map {"$_:$trf_res{$_}"} keys %trf_res ) . "\n";

@@ -18,11 +18,11 @@ use File::Basename;
 use lib "$FindBin::RealBin/lib";
 use vutil qw(get_config get_dbh gen_exec_array_cb vs_db_insert set_statistics);
 
-print strftime( "Start: %F %T\n\n", localtime );
+warn strftime( "Start: %F %T\n\n", localtime );
 
 my $argc = @ARGV;
-die "Usage: map_dup.pl expects 2 arguments.\n"
-    unless $argc >= 2;
+die "Usage: map_dup.pl expects 3 arguments.\n"
+    unless $argc >= 3;
 
 # TODO Better default or calculate in advance
 my $maxRepeatsPerRead = 2;
@@ -30,6 +30,7 @@ my $maxRepeatsPerRead = 2;
 my $curdir   = getcwd;
 my $cnf      = $ARGV[0];
 my $TEMPDIR  = $ARGV[1];
+my $outfile  = $ARGV[2];
 
 my %run_conf = get_config("CONFIG", $cnf);
 my $dbh = get_dbh()
@@ -100,6 +101,7 @@ my $insert_mduptemp_sth = $dbh->prepare(q{INSERT INTO mduptemp VALUES(?, ?)});
 
 my $i = 0;
 my @mdup = ();
+open (my $outfh, ">$outfile")
 while ( my @data = $readsWithMultTRsMappedMultRefs_sth->fetchrow_array() ) {
 
     # TODO Use read length to calculate $maxRepeatsPerRead
@@ -126,7 +128,7 @@ while ( my @data = $readsWithMultTRsMappedMultRefs_sth->fetchrow_array() ) {
             max( $oldRlast, $data2[7] ) - min( $oldRfirst, $data2[6] ) + 1 );
 
         if ( $j == 1 ) {
-            print "\n"
+            print $outfh "\n"
                 . $i
                 . ". read='"
                 . $data2[2]
@@ -142,12 +144,12 @@ while ( my @data = $readsWithMultTRsMappedMultRefs_sth->fetchrow_array() ) {
             )
         {
             push @mdup, [ $oldrefid, $oldreadid ];
-            print "X";
+            print $outfh "X";
             $deleted++;
             $isDeleted = 1;
         }
 
-        print "\n\t"
+        print $outfh "\n\t"
             . $data2[0] . "->"
             . $data2[1]
             . " P=$data2[3] F=$data2[4] ";
@@ -156,7 +158,7 @@ while ( my @data = $readsWithMultTRsMappedMultRefs_sth->fetchrow_array() ) {
         if ( $j > 1 && $numTRsInRead > $maxRepeatsPerRead ) {
 
             push @mdup, [ $data2[1], $data2[0] ];
-            print "X";
+            print $outfh "X";
             $deleted++;
             $isDeleted = 1;
         }
@@ -171,7 +173,7 @@ while ( my @data = $readsWithMultTRsMappedMultRefs_sth->fetchrow_array() ) {
             }
             else {
                 push @mdup, [ $data2[1], $data2[0] ];
-                print "X";
+                print $outfh "X";
                 $deleted++;
                 $isDeleted = 1;
             }
@@ -243,8 +245,8 @@ $dbh->do(q{UPDATE stats SET BBB=(SELECT count(*) FROM map WHERE bbb=1)})
 
 $dbh->disconnect();
 
-printf "%d entries deleted!\n", $deleted;
-printf "%d reads deleted!\n",   $ReadsDeleted;
+printf $outfh "%d entries deleted!\n", $deleted;
+printf $outfh "%d reads deleted!\n",   $ReadsDeleted;
 
 warn strftime( "\nEnd: %F %T\n\n", localtime );
 

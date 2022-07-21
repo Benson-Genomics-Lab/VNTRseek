@@ -545,11 +545,11 @@ int main( int argc, char **argv ) {
                 "INPUTFOLDER OUTPUFFILE\n",
           argv[0], argv[0] );
         printf( "   -s options will sort the file (only for single file input) "
-                "\n\n\n" );
+                "\n\n" );
         printf( "   -n options will output single file (will break in multiple "
-                "otherwise) \n\n\n" );
+                "otherwise) \n\n" );
         printf( "   -i options will only remove identical profiles, without "
-                "rotating \n\n\n" );
+                "rotating \n\n" );
 
         exit( 1 );
     }
@@ -876,10 +876,10 @@ int main( int argc, char **argv ) {
     EasyArrayQuickSort( FARRAY, name_cmp );
 
     // open input file(s) for reading
-    printf( "\nOpening files...\n" );
+    printf( "\nOpening files..." );
 
     if ( 0 == FARRAY->size ) {
-        printf( "\nERROR: No input files found in the directory.\n\n" );
+        printf( "\nERROR: No input files found in the directory.\n" );
         exit( 1 );
     }
 
@@ -894,7 +894,7 @@ int main( int argc, char **argv ) {
             exit( 1 );
         }
 
-        printf( "\t%s\n", fiptr->inputfile );
+        //printf( "\t%s\n", fiptr->inputfile );
     }
 
 	printf("\nThere were %d files opened.",filecounter);
@@ -903,7 +903,7 @@ int main( int argc, char **argv ) {
     fpto = fopen( outputfile, "w" );
 
     if ( fpto == NULL ) {
-        printf( "\nERROR: Unable to open output file '%s'.\n\n", outputfile );
+        printf( "\nERROR: Unable to open output file '%s'.\n", outputfile );
         exit( 1 );
     }
 
@@ -911,7 +911,7 @@ int main( int argc, char **argv ) {
     fpto2 = fopen( outputfile2, "w" );
 
     if ( fpto2 == NULL ) {
-        printf( "\nERROR: Unable to open index file '%s'\n\n", outputfile2 );
+        printf( "\nERROR: Unable to open index file '%s'\n", outputfile2 );
         exit( 1 );
     }
 
@@ -921,7 +921,7 @@ int main( int argc, char **argv ) {
         //read records
         readRecordsFromFileToBuffer(fiptr);
         if (fiptr->buffercount == 0){
-        	printf( "\nERROR: Input file %s was empty\n\n", fiptr->inputfile);
+        	printf( "\nERROR: Input file %s was empty\n", fiptr->inputfile);
         	exit( 1 );
 		}        		
 	}
@@ -1132,7 +1132,7 @@ int main( int argc, char **argv ) {
 
 				//reduce filecounter by 1
 				filecounter--;
-				printf("\nFiles left = %d",filecounter);
+				//printf("\nFiles left = %d",filecounter);
 				
 				//test if heap empty and if so, break out of while
 				if(filecounter == 0)

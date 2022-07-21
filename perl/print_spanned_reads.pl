@@ -21,7 +21,7 @@ use FindBin;
 use File::Basename;
 
 use lib "$FindBin::RealBin/lib";
-use vutil qw(trim get_config get_dbh set_statistics);
+use vutil qw(trim get_config set_statistics);
 
 my $strip454 = "0";
 
@@ -63,15 +63,11 @@ my $indexfolder = $ARGV[1];
 my $fastafolder = $ARGV[2];
 
 my %run_conf = get_config("CONFIG", $cnf);
-my $dbh = get_dbh()
-    or die "Could not connect to database: $DBI::errstr";
 
 my %HEADHASH = ();
 my $totalReads = 0;
 
-print STDERR
-    "\nreading index file and storing relevant entries in database..."
-    . "\n\n";
+# read index file and store relevant entries
 opendir( DIR, $indexfolder );
 my @indexfiles = sort grep( /\.(?:index\.renumbered)$/, readdir(DIR) );
 closedir(DIR);
@@ -91,8 +87,6 @@ my $fh1;
 my $fh2;
 
 foreach my $ifile (@indexfiles) {
-
-    print STDERR "\n" . $ifile;
 
     open( $fh1, "<$indexfolder/$ifile" ) or die $!;
     $i = 0;
@@ -131,9 +125,7 @@ foreach my $ifile (@indexfiles) {
 $totalReads = 0;
 $inserted   = 0;
 $processed  = 0;
-print STDERR
-    "\nreading gzipped fasta files and storing relevant entries in database..."
-    . "\n\n";
+# read fasta files and store relevant entries
 opendir( DIR, $fastafolder );
 
 # the only extensions are .tgz, .tar.gz, and .gz
@@ -160,7 +152,6 @@ my $HEADER_SUFFIX = "";
 
 FILE:
 foreach (@tarballs) {
-    print STDERR $_ . "";
 
     if ( $_ =~ /\.(?:tgz|tar\.gz)$/ ) {
         open( FASTA_IN, "tar xzfmoO '$fastafolder/$_' |" );
@@ -330,15 +321,8 @@ foreach (@tarballs) {
                 print ">$headstr", "\n", trimall("$dnastr"), "\n";
             }
         }
-
     }
-
-    print STDERR " (processed: $processed)\n";
-
 }
-
-# disconnect
-$dbh->disconnect();
 
 1;
 

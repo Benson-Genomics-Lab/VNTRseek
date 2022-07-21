@@ -14,7 +14,7 @@ use warnings;
 use Cwd;
 use POSIX qw(strftime);
 
-warn strftime( "\n\nstart: %F %T\n\n", localtime );
+warn strftime( "Start: %F %T\n\n", localtime );
 
 die "Useage: run_proclu.pl expects 8 arguments.\n"
     unless scalar @ARGV >= 8;
@@ -43,7 +43,7 @@ my $PROCLU_PARAM_END   = "$curdir/eucledian.dst $params_in";
 my $files_processed = 0;	# files processed
 my %p; # associates forked pids with output pipe pids
 
-my $MYLOCK=0;
+my $MYLOCK=0;  # KA: meaningless, there is no shared memory in perl
 
 # get a list of input files
 opendir(DIR, $tgz_dir);
@@ -51,40 +51,12 @@ opendir(DIR, $tgz_dir);
 my @tarballs = grep(/\.(?:leb36)$/, readdir(DIR));
 closedir(DIR);
 my $tarball_count = @tarballs;
-print STDERR "$tarball_count supported files found in $tgz_dir\n";
+print "$tarball_count supported files found in $tgz_dir\n";
 die "Exiting\n" if $tarball_count == 0;
 $files_to_process = $tarball_count if $files_to_process > $tarball_count;
 
 # enter dir
 chdir($tgz_dir);
-
-
-# make sure the ids are unique (renumbering was not ran correctly)
-#print STDERR "Checking reference leb36 file...\n";
-#my %uhash = ();
-#open FILE, "<$reffolder/reference.leb36" or die $!;
-#while (<FILE>) {
-#  if (/^(\d+)/) {
-#      if (exists $uhash{$1}) { die "Non-unique id ($1) detected in reads. Were steps 2 and 3 executed?\n"; }
-#      $uhash{$1} = 1;
-#  }
-#}
-#close FILE;
-
-#print STDERR "Checking read leb36 files...\n";
-#%uhash = ();
-#foreach my $ifile (@tarballs) {
-#  open FILE, "<$ifile" or die $!;
-#  while (<FILE>) {
-#    if (/^(\d+)/) {
-#        if (exists $uhash{$1}) { die "Non-unique id ($1) detected in reads. Were steps 2 and 3 executed?\n"; }
-#        $uhash{$1} = 1;
-#    }
-#  }
-#  close FILE;
-#}
-
-#%uhash = ();
 
 
 # fork as many new processes as there are CPUs
@@ -93,36 +65,31 @@ for (my $i = 0; $i < $cpucount; $i++) { $p{fork_proclu()} = 1 }
 # wait for processes to finish and then fork new ones
 while ((my $pid = wait) != -1) {
 
-      # check return value
-      my ($rc, $sig, $core) = ($? >> 8, $? & 127, $? & 128);
-      if ($core){
-         print STDERR "proclu process $pid dumped core\n";
-         exit (1000);
-      }elsif($sig == 9){
-         print  STDERR "proclu process $pid was murdered!\n";
-         exit (1001);
-      }elsif ($rc != 0){
-         print STDERR  "proclu process $pid has returned $rc!\n";
+    # check return value
+    my ($rc, $sig, $core) = ($? >> 8, $? & 127, $? & 128);
+    if ($core) {
+        warn "proclu process $pid dumped core\n";
+        exit (1000);
+    }
+    elsif ($sig == 9) {
+        warn "proclu process $pid was murdered!\n";
+        exit (1001);
+    }
+    elsif ($rc != 0) {
+        warn "proclu process $pid has returned $rc!\n";
+        exit ($rc);
+    }
 
-        # Clean up remaining child processes
-        for my $c (keys %p) {
-            kill("TERM", $c);
-        }
-         exit ($rc);
-      }
+    # KA: not sure why we're checking this
+    die "Unrelated process $pid finished?\n" unless $p{$pid};
 
-        if ($p{$pid}) {
-                # one instance has finished processing -- start a new one
-                delete $p{$pid};
-                $p{fork_proclu()} = 1;
-        } else {
-                die "************ Process $pid finished (not in hash)\n";
-        }
+    # one instance has finished processing -- start a new one
+    delete $p{$pid};
+    $p{fork_proclu()} = 1;
 }
-print STDERR "Processing complete -- processed $files_processed file(s).\n";
 
-warn strftime( "\n\nend: %F %T\n\n", localtime );
-
+print "Processing complete -- processed $files_processed file(s).\n";
+warn strftime( "\nEnd: %F %T\n\n", localtime );
 
 1;
 

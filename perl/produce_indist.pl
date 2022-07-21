@@ -23,7 +23,6 @@
 
 use strict;
 use warnings;
-use feature 'say';
 use Getopt::Long;
 use IO::Handle;
 use FindBin;
@@ -90,7 +89,7 @@ my $get_filtered_set_profiles_sth
 $get_filtered_set_profiles_sth->execute;
 open my $tmp_filt_file_fh, ">", $tmp_filt_file;
 while ( my @fields = $get_filtered_set_profiles_sth->fetchrow_array ) {
-    say $tmp_filt_file_fh join( " ", @fields );
+    print $tmp_filt_file_fh join( " ", @fields ) . "\n";
 }
 close $tmp_filt_file_fh;
 
@@ -129,7 +128,7 @@ my $get_full_set_profiles_sth = $full_dbh->prepare($get_profiles_sorted_q);
 $get_full_set_profiles_sth->execute;
 open my $tmp_full_file_fh, ">", $tmp_full_file;
 while ( my ($rid) = $get_full_set_profiles_sth->fetchrow_array ) {
-    say $tmp_full_file_fh join( " ", $rid, @{ $full_hash{$rid} } );
+    print $tmp_full_file_fh join( " ", $rid, @{ $full_hash{$rid} } ) . "\n";
 }
 close $tmp_full_file_fh;
 %full_hash = ();
@@ -209,7 +208,7 @@ $filtered_dbh->commit;
 my $bname = basename( $filtered_set, ".leb36" );
 open my $indist_out, ">", getcwd . "/$bname.indist";
 for my $tr ( sort keys(%indist) ) {
-    say $indist_out $tr;
+    print $indist_out $tr . "\n";
     $insert_indist_sth->execute( -$tr );
 }
 close $indist_out;

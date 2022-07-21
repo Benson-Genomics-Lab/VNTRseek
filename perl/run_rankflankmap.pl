@@ -25,8 +25,7 @@ sub nowhitespace($) {
     return $string;
 }
 
-warn strftime( "\n\nstart: %F %T\n\n", localtime );
-
+warn strftime( "Start: %F %T\n\n", localtime );
 
 my $argc = @ARGV;
 die "Usage: run_rankflankmap.pl expects 4 arguments.\n"
@@ -88,7 +87,6 @@ my $uploadedrank = 0;
 my $uploadedmap  = 0;
 my ( @map_rows, @rankflank_rows );
 
-#foreach my $file (@files) {
 foreach my $file (@allfiles) {
 
     if ( index( $file, "_map" ) ) {
@@ -105,42 +103,25 @@ foreach my $file (@allfiles) {
             my $msize   = scalar @mfields;
             if ( $msize >= 8 ) {
                 my $readid = $mfields[0];
-
-                #print "\n\n".$_."\n\n";
-                #exit(1);
-
                 my @rfields = split( ',', $mfields[7] );
-
-                #my @temparray = ();
-
                 my $bestscore = 0;
                 my $bestref   = "";
 
                 foreach my $refstr (@rfields) {
                     if ( $refstr =~ /^-?(\d+):(\d+):(\d+)/ ) {
 
-                        #print "\n".$1." ".$2." ".$3."\n";
-                        #exit(1);
-
                         # calculate score
                         my $score;
 
-                        if ( ( $mfields[2] + $mfields[3] )
-                            == 0
-                            ) # if no flanks, it will only be marked best if nothing else is available
-                        {
+                        # if no flanks, it will only be marked best if nothing else is available
+                        if ( ( $mfields[2] + $mfields[3] ) == 0 ) {
                             $score = 0;
                         }
-                        else
-
-                   #{ # asked to add by Dr. Benson to balance out small flanks
-
-                         #  my $A = ($2 + $3) / ( $mfields[2] + $mfields[3] );
-                         #  my $B = 1 / ( $mfields[2] + $mfields[3]);
-                         #  $score = 1 - max($A,$B);
-                         #}
-
-                        {
+                        else {
+                            ## asked to add by Dr. Benson to balance out small flanks
+                            #my $A = ($2 + $3) / ( $mfields[2] + $mfields[3] );
+                            #my $B = 1 / ( $mfields[2] + $mfields[3]);
+                            #$score = 1 - max($A,$B);
                             $score = 1 - (
                                 ( $2 + $3 ) / ( $mfields[2] + $mfields[3] ) );
                         }
@@ -158,9 +139,6 @@ foreach my $file (@allfiles) {
                             }
                         }
 
-       # create a map entry in database (added 11/19/2010)
-       #$map_insert_sth->execute($1,$readid)             # Execute the query
-       #      or die "Couldn't execute statement: " . $map_insert_sth->errstr;
                         $k++;
                         push @map_rows, [ $1, $readid ];
                         if ( @map_rows % $RECORDS_PER_INFILE_INSERT == 0 ) {
@@ -173,8 +151,7 @@ foreach my $file (@allfiles) {
                                 @map_rows = ();
                             }
                             else {
-                                die
-                                    "Something went wrong inserting, but somehow wasn't caught!\n";
+                                die "Something went wrong inserting, but somehow wasn't caught!\n";
                             }
                         }
                     }
@@ -186,8 +163,6 @@ foreach my $file (@allfiles) {
                     my $ties  = scalar(@ranks) - 1;
                     foreach my $rstr (@ranks) {
 
-#$rankflank_insert_sth->execute($readid,$rstr,$bestscore)             # Execute the query
-#      or die "Couldn't execute statement: " . $rankflank_insert_sth->errstr;
                         $j++;
 
                         push @rankflank_rows,
@@ -212,19 +187,11 @@ foreach my $file (@allfiles) {
 
                     }
                 }
-
-                #$READVECTOR{$readid} = @temparray;
-
-                #print "\n";
             }
         }
 
-        # load the files and remove the temp files
-
         ( $ENV{DEBUG} ) && warn "processed: $clusters_processed\n";
-
     }    # end of if (index($file,"_map")) {
-
 }    # end of foreach @files
 close(FILE);
 
@@ -242,8 +209,8 @@ if (@map_rows) {
 }
 
 if ( $uploadedmap != $k ) {
-    die
-        "Uploaded number of map entries($uploadedmap) not equal to the number of uploaded counter ($k), aborting!\n";
+    die "Uploaded number of map entries($uploadedmap) not equal to"
+        . " the number of uploaded counter ($k), aborting!\n";
 }
 
 if (@rankflank_rows) {
@@ -260,8 +227,8 @@ if (@rankflank_rows) {
 }
 
 if ( $uploadedrank != $j ) {
-    die
-        "Uploaded number of rankflank entries($uploadedrank) not equal to the number of uploaded counter ($j), aborting!\n";
+    die "Uploaded number of rankflank entries($uploadedrank) not equal to"
+        . "the number of uploaded counter ($j), aborting!\n";
 }
 AAA:
 
@@ -274,10 +241,11 @@ $dbh->do(
 ) or die "Couldn't do statement: " . $dbh->errstr;
 
 $sth1 = $dbh->prepare(qq{INSERT INTO ranktemp VALUES (?, ?)});
-print STDERR
-    "Prunning (keep best ref for each read) from rankflank table...\n";
-my $query
-    = "Select refid,readid,sid,score FROM rankflank INNER JOIN replnk ON rankflank.readid=replnk.rid ORDER BY readid, score;";
+print "Prunning (keep best ref for each read) from rankflank table...\n";
+my $query = qq{
+    SELECT refid, readid, sid, score
+    FROM rankflank INNER JOIN replnk ON rankflank.readid=replnk.rid
+    ORDER BY readid, score;};
 $sth = $dbh->prepare($query);
 $sth->execute();
 my $i        = 0;
@@ -327,12 +295,14 @@ if (@rows) {
     }
 }
 
-print STDERR "Prunning complete. Pruned $count rankflank records.\n";
+print "Prunning complete. Pruned $count rankflank records.\n";
 
-print STDERR "Prunning all (one TR/same read) rankflank table...\n";
-$query
-    = "Select refid,readid,sid,score FROM rankflank INNER JOIN replnk ON rankflank.readid=replnk.rid ORDER BY refid, sid, score, readid;"
-    ; # readid added for tie resolution to keep rank and rankflank entries more in sync
+print "Prunning all (one TR/same read) rankflank table.\n";
+# readid added for tie resolution to keep rank and rankflank entries more in sync
+$query = qq{
+    SELECT refid, readid, sid, score
+    FROM rankflank INNER JOIN replnk ON rankflank.readid=replnk.rid
+    ORDER BY refid, sid, score, readid;};
 $sth = $dbh->prepare($query);
 $sth->execute();
 $i       = 0;
@@ -355,8 +325,7 @@ while ( my @data = $sth->fetchrow_array() ) {
                 @rows = ();
             }
             else {
-                die
-                    "Something went wrong inserting, but somehow wasn't caught!\n";
+                die "Something went wrong inserting, but somehow wasn't caught!\n";
             }
         }
     }
@@ -379,7 +348,7 @@ if (@rows) {
     }
 }
 
-print STDERR "Prunning complete. Pruned $count rankflank records.\n";
+print "Prunning complete. Pruned $count rankflank records.\n";
 
 # delete from rankflank based on temptable entries
 my $delfromtable = 0;
@@ -389,8 +358,7 @@ $query = qq{
         SELECT * FROM ranktemp t2
         WHERE rankflank.refid = t2.refid
             AND rankflank.readid = t2.readid
-    )
-};
+    )};
 $dbh->begin_work;
 $delfromtable = $dbh->do($query);
 $dbh->commit;
@@ -402,8 +370,8 @@ $dbh->do("PRAGMA foreign_keys = ON");
 $dbh->do("PRAGMA synchronous = ON");
 
 if ( $delfromtable != $count ) {
-    die
-        "Deleted number of entries($delfromtable) not equal to the number of deleted counter ($count), aborting!";
+    die "Deleted number of entries($delfromtable) not equal to"
+        . " the number of deleted counter ($count), aborting!";
 }
 
 $dbh->disconnect();
@@ -414,12 +382,9 @@ set_statistics(
     }
 );
 
-print STDERR "\n\n";
+print "Processing complete -- processed $clusters_processed cluster(s)."
+    . "\n  Deleted from rankflank using temptable: $delfromtable\n";
 
-print STDERR
-    "Processing complete -- processed $clusters_processed cluster(s). Deleted from rankflank using temptable: $delfromtable\n";
-
-warn strftime( "\n\nend: %F %T\n\n", localtime );
+warn strftime( "\nEnd: %F %T\n\n", localtime );
 
 1;
-

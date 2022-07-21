@@ -23,17 +23,18 @@ sub nowhitespace($) {
     return $string;
 }
 
-warn strftime( "\n\nstart: %F %T\n\n", localtime );
+warn strftime( "Start: %F %T\n\n", localtime );
 
 my $argc = @ARGV;
-die "Usage: run_flankcomp.pl expects 4 arguments.\n"
-    unless $argc >= 4;
+die "Usage: run_flankcomp.pl expects 5 arguments.\n"
+    unless $argc >= 5;
 
 my $curdir    = getcwd();
 my $inputfile = $ARGV[0];
 my $DBSUFFIX  = $ARGV[1];
 my $cnf       = $ARGV[2];
 my $TEMPDIR   = $ARGV[3];
+my $outfile   = $ARGV[4];
 
 # get run config
 my %run_conf = get_config("CONFIG", $cnf);
@@ -56,10 +57,6 @@ my $maxRange    = 0;
 
 my $BREAK_SIZE = 4000;
 
-#for my $i (keys %BELONG) {
-#  print STDERR $i.":".$BELONG{$i}."\n";
-#}
-#exit(1);
 
 # clear database cluster tables
 $write_dbh->do( "DELETE FROM clusters" )
@@ -72,13 +69,8 @@ $write_dbh->do("PRAGMA foreign_keys = OFF");
 $write_dbh->do("PRAGMA synchronous = OFF");
 
 #############################################################################################
-#############################################################################################
-#############################################################################################
-#############################################################################################
-#############################################################################################
-#############################################################################################
 
-print STDERR "\nInserting into clusterlnk table...\n";
+print "Inserting into clusterlnk table...\n";
 
 open my $fh, "<$inputfile" or die $!;
 my $TEMPFILE;
@@ -89,7 +81,7 @@ $sth = $write_dbh->prepare(q{INSERT INTO clusterlnk VALUES (?, ?, ?, 0, 0)})
 # insert into clusterlnk
 my $totalreps = 0;
 
-# DBI->trace("3|SQL", "dbitrace.log");
+# DBI->trace("3|SQL", "dbitrace.log"); # what is this wizardry?
 my @cluster_links;
 while (<$fh>) {
     $clusters_processed++;
@@ -139,17 +131,12 @@ if (@cluster_links) {
 }
 
 #############################################################################################
-#############################################################################################
-#############################################################################################
-#############################################################################################
-#############################################################################################
-#############################################################################################
 
 # Sync the DB so the next SELECTs work
 $write_dbh->do("PRAGMA synchronous = FULL");
 $write_dbh->do("PRAGMA synchronous = OFF");
 
-print STDERR "\nPrinting DNA and inserting into cluster table...\n";
+print "Printing DNA and inserting into cluster table...\n";
 
 # now print dna and quals (also insert into cluster table)
 $sth = $read_dbh->prepare(
@@ -242,21 +229,23 @@ while (<$fh>) {
     # print reads in blocks of BREAK_SIZE
     $i = 0;
     my $hcount = 0;
+
+    open( my $outfh, ">$outfile" ) or die $!;
     while ( my @data = $sth1->fetchrow_array() ) {
         if ( ( $i % $BREAK_SIZE ) == 0 ) {
             $hcount++;
 
-            print "@($clusters_processed\_$hcount):";
-            print
+            print $outfh "@($clusters_processed\_$hcount):";
+            print $outfh
                 "\n**********************************************************************\n";
 
             # print refs each time
             open( my $RFILE, "<$TEMPDIR/refs_$DBSUFFIX.txt" ) or die $!;
-            while (<$RFILE>) { print $_; }
+            while (<$RFILE>) { print $outfh $_; }
             close($RFILE);
         }
         my $dna = nowhitespace( $data[1] );
-        print $data[0]
+        print $outfh $data[0]
             . $data[6] . ","
             . $data[2] . ","
             . $data[3] . ","
@@ -268,6 +257,7 @@ while (<$fh>) {
 
         $i++;
     }
+    close($outfh);
 
     # do for 1st 10 clusters for now
     #if ($clusters_processed >= 20) { last; }
@@ -338,7 +328,6 @@ my %stats = (
 );
 set_statistics( \%stats );
 
-print STDERR
-    "Processing complete -- processed $clusters_processed cluster(s)."
-    . strftime( "\n\nend: %F %T\n\n", localtime );
+print "Processing complete -- processed $clusters_processed cluster(s).";
+warn strftime( "\nEnd: %F %T\n\n", localtime );
 

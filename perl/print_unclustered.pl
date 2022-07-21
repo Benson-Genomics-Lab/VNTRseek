@@ -10,13 +10,10 @@ use FileHandle;
 use Getopt::Std;
 use File::Copy;
 
-
 # Prints references that are not clustered
 
-
-if (@ARGV<3) {
- print STDERR "\n\nprint_unclustered.pl: Enter database name, login and pass!\n";
- exit 1;
+if (@ARGV < 3) {
+    die "\nprint_unclustered.pl: Enter database name, login and pass!\n";
 }
 
 my $DBNAME = $ARGV[0];

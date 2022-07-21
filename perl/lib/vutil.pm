@@ -7,7 +7,7 @@ use Carp;
 use FindBin;
 use File::Temp;
 use Try::Tiny;
-use POSIX qw(strftime);
+use POSIX 'strftime';
 
 if ( $ENV{DEBUG} ) {
     use Data::Dumper;
@@ -1110,8 +1110,8 @@ sub run_redund {
     unless ($minrep_sql) {
         my $res = $dbh->selectall_arrayref(q{SELECT * FROM minrep.sqlite_master});
         use Data::Dumper;
-        say Dumper($res);
-        die "unable to get CREATE TABLE statement for minreporder from redund db\n";
+        print Dumper($res) . "\n";
+        die "Unable to get CREATE TABLE statement for minreporder from redund db\n";
     }
 
     $minrep_sql =~ s/minreporder/main.minreporder/;
