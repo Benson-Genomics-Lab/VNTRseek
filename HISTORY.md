@@ -1,5 +1,4 @@
----
-# ver 2.0.1 - Jul 21, 2022
+# Version 2.0.1 - Jul 21, 2022
 
 - fixed `NPROCESSES` internally so config is accurate
 - made support for relative input, output, and temp paths
@@ -20,7 +19,7 @@
 - fixed subscript config loading and unified preambles
 - reduced stderr spam in steps 1, 4, 8, 15, 17
 - reduced stdout spam in steps 3, 5, 10, 14, 15, 16
-  - c scripts: redund.c, joinc.c, flankalign.c
+  - and in c scripts: `redund2.c`, `joinc.c`, `flankalign.c`
 - rewired `map_dup.pl` and `run_flankcomp.pl` to free up `STDOUT`
 - changed `STDERR`s to `STDOUT`
 - fixed VNTR vcf output skipping first entry
@@ -31,14 +30,14 @@
 - updated help files
 
 ---
-# ver 2.0.0 - Jul 11, 2022
+# Version 2.0.0 - Jul 11, 2022
 
-- Cleanup of run_edges.pl to reduce file io
-- New redund.c to reduce time
-- No longer overwrites config file every run
-- merge of disaparte changes in stale dev branches
+- cleaned up of `run_edges.pl` to reduce file io
+- instated new `redund2.c` to reduce time
+- removed overwrite of config file every run
+- merged disaparte changes in stale dev branches
 
 ---
-# ver 1.10.0-rc.4 - 2019
+# Version 1.10.0-rc.4 - 2019
 
-- See previous releases for changes
+- See previous releases for older changes
