@@ -5,7 +5,7 @@
 use strict;
 use warnings;
 use Cwd;
-use POSIX qw(strftime);
+use POSIX "strftime";
 use DBI;
 use File::Basename;
 
@@ -13,8 +13,9 @@ use FindBin;
 use lib "$FindBin::RealBin/lib";
 use vutil qw(trim get_config get_dbh set_statistics);
 
-warn strftime( "Start: %F %T\n\n", localtime );
+print strftime( "Start: %F %T\n\n", localtime );
 
+# Arguments
 my $argc = @ARGV;
 die "Usage: extra_index.pl expects 2 arguments.\n"
     unless $argc >= 2;
@@ -23,13 +24,10 @@ my $curdir = getcwd();
 my $folder = $ARGV[0];
 my $cnf    = $ARGV[1];
 
+# database
 my %run_conf = get_config("CONFIG", $cnf);
 my $dbh = get_dbh()
     or die "Could not connect to database: $DBI::errstr";
-
-# create folder
-system("rm -rf $folder");
-mkdir($folder);
 
 my $sth;
 my $query;
@@ -75,16 +73,11 @@ while ( my @data = $sth->fetchrow_array() ) {
     $oldread = $data[1];
     $i++;
 }
-
 close($fh) if ($fh);
-
 $sth->finish();
 $dbh->disconnect();
 
 print "Processing complete (extra_index.pl), $nrefs files created.\n";
-
-warn strftime( "\nEnd: %F %T\n\n", localtime );
-
+print strftime( "\nEnd: %F %T\n\n", localtime );
 
 1;
-

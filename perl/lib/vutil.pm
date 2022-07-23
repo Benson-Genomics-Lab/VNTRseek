@@ -215,7 +215,7 @@ sub get_config {
     }
     if (!$opts{'TMPDIR'}) {
         $opts{'TMPDIR'} = $opts{'OUTPUT_ROOT'};
-        warn "TMPDIR not set. Using OUTPUT_ROOT ($opts{'OUTPUT_ROOT'}).\n";
+        print "TMPDIR not set. Using OUTPUT_ROOT ($opts{'OUTPUT_ROOT'}).\n";
     }
 
     # keep a local copy of everything and send back the results
@@ -735,7 +735,7 @@ sub make_refseq_db {
         && warn "Does ref table exist?: $tab_exists. Redo set to: $redo\n";
 
     if ( $tab_exists == 0 || $redo ) {
-        warn "Creating reference sequence database...\n";
+        print "Creating reference sequence database.\n";
         $dbh->do(q{DROP TABLE IF EXISTS fasta_ref_reps});
         $dbh->do($create_fasta_ref_reps_q);
         $dbh->do($fasta_ref_reps_index_q);
@@ -920,15 +920,15 @@ sub load_refprofiles_db {
         );
 
         # Insert all ref TRs from refleb36 file
-        $dbh->begin_work;
+        $dbh->begin_work();
         my $num_rows = $dbh->do(
             qq{INSERT INTO ref_profiles ($cols)
             SELECT * FROM temp.leb36tab}
         );
 
         if ( $num_rows != @$leb36_rows ) {
-            $dbh->rollback;
-            $dbh->disconnect;
+            $dbh->rollback();
+            $dbh->disconnect();
             die
                 "Error inserting reference profiles into database: inserted $num_rows but read "
                 . scalar(@$leb36_rows)
@@ -937,11 +937,11 @@ sub load_refprofiles_db {
 
         $dbh->do(q{DROP TABLE temp.leb36tab});
 
-        $dbh->commit;
+        $dbh->commit();
 
         # Run redund
         try {
-            warn "Running redund on ref set\n";
+            print "Running redund on ref set.\n";
             run_redund( $dbh, $refleb36, "reference.leb36", 0, 0 );
         }
         catch {
@@ -949,9 +949,9 @@ sub load_refprofiles_db {
             # if (/DBD::SQLite::db/) {
             # }
 
-            $dbh->rollback;
+            $dbh->rollback();
             $dbh->do(q{DROP TABLE IF EXISTS `ref_profiles`});
-            $dbh->disconnect;
+            $dbh->disconnect();
 
             die "\n";
         };
@@ -974,7 +974,7 @@ sub set_indist {
     return
         unless ( $redo || $indists_unset );
 
-    warn "Updating indistinguishable TRs...\n";
+    print "Updating indistinguishable TRs.\n";
     open my $indist_fh, "<", $indist_file
         or die "Error opening indist file $indist_file: $!\n";
     my $count = 0;
@@ -1057,7 +1057,7 @@ sub run_redund {
 
     # warn Dumper($unique_trs) ."\n";
 
-    warn "Marking non-redundant TRs in database.\n";
+    print "Marking non-redundant TRs in database.\n";
     $dbh->begin_work();
     $dbh->do(
         q{CREATE TEMPORARY TABLE temp.unique_trs
@@ -1088,7 +1088,7 @@ sub run_redund {
 
     #=<<Set minimum representation>>
     # Attach database created by redund.exe
-    warn "Getting sort order of TRs by minimum representation.\n";
+    print "Getting sort order of TRs by minimum representation.\n";
     my $minreporder_db = "$tmp_file.db";
     $dbh->do(qq{ATTACH DATABASE "$minreporder_db" AS minrep})
         or carp "Couldn't do statement: $DBI::errstr\n";
@@ -1128,7 +1128,7 @@ sub run_redund {
         or carp "Couldn't do statement: $DBI::errstr\n";
 
     # Save the rotindex file
-    warn "Saving rotindex (redundancy index) into database\n";
+    print "Saving rotindex (redundancy index) into database.\n";
     my $rotindex;
     {
         local $/;
@@ -1142,7 +1142,7 @@ sub run_redund {
     $load_rotindex_sth->bind_param( 1, $rotindex, DBI::SQL_BLOB );
     $load_rotindex_sth->execute;
 
-    warn "$unique_tr_count unique TRs in filtered set\n";
+    print "$unique_tr_count unique TRs in filtered set.\n";
 
     unlink($minreporder_db);
 
@@ -1160,34 +1160,20 @@ sub run_redund {
 ################################################################
 sub write_sqlite {
 
-    my $output_folder = "$VSCNF_FILE{OUTPUT_ROOT}/vntr_$VSCNF_FILE{DBSUFFIX}";
-    if ( !-e "$output_folder" ) {
-        unless ( mkdir("$output_folder") ) {
-            if ( $!{EEXIST} ) {
-                warn
-                    "Warning: Not creating data directory, directory exists.\n";
-            }
-            else {
-                warn "Warning: Failed to create data directory!\n";
-            }
-        }
-    }
-
     my $installdir = "$FindBin::RealBin";
     ( $ENV{DEBUG} ) && warn "Creating SQLite database...\n";
 
     my $dbfile
         = "$VSCNF_FILE{OUTPUT_ROOT}/vntr_$VSCNF_FILE{DBSUFFIX}/$VSCNF_FILE{DBSUFFIX}.db";
 
-# if ( -e $dbfile && !( exists $VSCNF_FILE{CLEAN} ) ) {
-#     die
-#         "Error: run database exists. Running step 0 is potentially destructive! "
-#         . "Exiting...\n(To override use option '--clean')\n";
-# }
-# ( exists $VSCNF_FILE{CLEAN} ) && unlink $dbfile;
-    my $exestring = "sqlite3 $dbfile < $installdir/sqlite_schema.sql";
-    warn "Executing: $exestring\n";
-    system($exestring);
+    # if ( -e $dbfile && !( exists $VSCNF_FILE{CLEAN} ) ) {
+    #     die
+    #         "Error: run database exists. Running step 0 is potentially destructive! "
+    #         . "Exiting...\n(To override use option '--clean')\n";
+    # }
+    # ( exists $VSCNF_FILE{CLEAN} ) && unlink $dbfile;
+
+    system("sqlite3 $dbfile < $installdir/sqlite_schema.sql");
 }
 
 ################################################################

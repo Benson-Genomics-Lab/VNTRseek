@@ -2,10 +2,10 @@
 
 use strict;
 use warnings;
-use List::Util qw[min max];
 use Cwd;
 use DBI;
-use POSIX qw(strftime);
+use List::Util qw[min max];
+use POSIX "strftime";
 use FindBin;
 use lib "$FindBin::RealBin/lib";
 use vutil
@@ -15,25 +15,17 @@ if ( $ENV{DEBUG} ) {
     use Data::Dumper;
 }
 
-sub nowhitespace($) {
-    my $string = shift;
-    $string =~ s/\s+//g;
-    return $string;
-}
+print strftime( "Start: %F %T\n\n", localtime );
 
-
-warn strftime( "Start: %F %T\n\n", localtime );
-
+# Arguments
 my $argc = @ARGV;
-die "Usage: run_variability.pl expects 5 arguments.\n"
-    unless $argc >= 5;
+die "Usage: run_variability.pl expects 3 arguments.\n"
+    unless $argc >= 3;
 
 my $curdir             = getcwd();
 my $inputfile          = $ARGV[0];
-my $mapdir             = $ARGV[1];
-my $cnf                = $ARGV[2];
-my $MIN_FLANK_REQUIRED = $ARGV[3];
-my $TEMPDIR            = $ARGV[4];
+my $cnf                = $ARGV[1];
+my $MIN_FLANK_REQUIRED = $ARGV[2];
 
 my %run_conf = get_config("CONFIG", $cnf);
 my $dbh = get_dbh()
@@ -142,14 +134,11 @@ while (<$fh>) {
 
         # go though all refs for each read
         if ( $val <= 0 ) {
-
             $refcount++;
-
             #$val = ($val<0)? -$val : $val; # ids are positive in database
 
             $sth->execute( -$val )    # Execute the query
                 or die "Couldn't execute statement: " . $sth->errstr;
-
             my @data = $sth->fetchrow_array();
 
             if ( $sth->rows == 0 ) {
@@ -159,15 +148,12 @@ while (<$fh>) {
             $ASKLENGTH{$val}
                 = int( $data[6] ); # remember length of the ref array sequence
             $REFCOPIES{$val} = $data[5];
-
         }
         else {
-
             $readcount++;
 
             $sth1->execute($val)    # Execute the query
                 or die "Couldn't execute statement: " . $sth1->errstr;
-
             my @data = $sth1->fetchrow_array();
 
             if ( $sth1->rows == 0 ) {
@@ -175,20 +161,15 @@ while (<$fh>) {
             }
 
             $readlen = length( nowhitespace( $data[1] ) );
-
             $ASKLENGTH{$val} = $readlen;    # remember length of the read
 
             $first = $data[2];
             $last  = $data[3];
             if (   ( $first - 1 ) >= $MIN_FLANK_REQUIRED
-                && ( $readlen - $last ) >= $MIN_FLANK_REQUIRED )
-            {
-
+                && ( $readlen - $last ) >= $MIN_FLANK_REQUIRED ) {
                 $READCOPIES{$val} = $data[5];
             }
-
         }
-
     }
 
     # get map data
@@ -215,14 +196,10 @@ while (<$fh>) {
 
         $readlen = $ASKLENGTH{$readid};
 
-        if ( !exists $ASKLENGTH{$readid} ) {
-            warn "Entry for $readid does not exist!\n";
-            exit(1);
-        }
-        if ( !exists $ASKLENGTH{$refid} ) {
-            warn "Entry for $refid does not exist!\n";
-            exit(1);
-        }
+        die "Entry for $readid does not exist!\n"
+            unless exists $ASKLENGTH{$readid};
+        die "Entry for $refid does not exist!\n"
+            unless exists $ASKLENGTH{$refid};
 
         #if ($ASKLENGTH{$refid} <= $readlen) {
         push( @{ $READVECTOR{$readid} }, $refid );
@@ -297,31 +274,20 @@ foreach my $key ( keys %VNTR_REF ) {
         my $rows
             = vs_db_insert( $dbh, $sth, $cb,
             "Error inserting into vntr_support table." );
-        if ($rows) {
-            $supInsert += $rows;
-            @vntrs_supported = ();
-        }
-        else {
-            die "Something went wrong inserting, but somehow wasn't caught!\n";
-        }
+        $supInsert += $rows;
+        @vntrs_supported = ();
     }
 }
 
 if (@vntrs_supported) {
     my $cb = gen_exec_array_cb( \@vntrs_supported );
-    my $rows
-        = vs_db_insert( $dbh, $sth, $cb,
+    my $rows = vs_db_insert( $dbh, $sth, $cb,
         "Error inserting into vntr_support table." );
-    if ($rows) {
-        $supInsert += $rows;
-        @vntrs_supported = ();
-    }
-    else {
-        die "Something went wrong inserting, but somehow wasn't caught!\n";
-    }
+    $supInsert += $rows;
+    @vntrs_supported = ();
 }
 
-$dbh->begin_work;
+$dbh->begin_work();
 $dbh->do(
     q{CREATE TEMPORARY TABLE ctr (
     `clusterid` INT(11) NOT NULL PRIMARY KEY,
@@ -375,7 +341,7 @@ set_statistics(
     }
 );
 
-warn strftime( "\nEnd: %F %T\n\n", localtime );
+print strftime( "\nEnd: %F %T\n\n", localtime );
 
 1;
 
@@ -391,12 +357,9 @@ sub add_support {
     my $key = $refid . "_" . $copies;
 
     if ( exists $VNTR_SUPPORT{$key} ) {
-
         $VNTR_SUPPORT{$key}++;
-
     }
     else {
-
         $VNTR_REF{$key}            = $refid;
         $VNTR_SAMEASREF{$key}      = $sameasref;
         $VNTR_COPIES{$key}         = $copies;
@@ -404,7 +367,6 @@ sub add_support {
         $VNTR_REPRESENTATIVE{$key} = $representative;
         $VNTR_SUPPORT{$key}        = 1;
     }
-
     $SUPPORT_INCREMENTED++;
 
     return 0;
@@ -421,7 +383,6 @@ sub add_zero_support {
     my $key = $refid . "_" . $copies;
 
     if ( !exists $VNTR_SUPPORT{$key} ) {
-
         $VNTR_REF{$key}         = $refid;
         $VNTR_SAMEASREF{$key}   = $sameasref;
         $VNTR_COPIES{$key}      = $copies;
@@ -441,8 +402,8 @@ sub VNTR_YES_NO {
     my %refs     = %{ shift() };
     my %reads    = %{ shift() };
     my %readhash = %{ shift() };
-    my %newrefs  = %{ shift() }
-        ; # this is to make sure we have an etnry in vntr_support for all BBB refs
+    my %newrefs  = %{ shift() }; 
+    # this is to make sure we have an entry in vntr_support for all BBB refs
     my $clusterid = shift;
 
     my $varyes = 0;
@@ -518,14 +479,8 @@ sub VNTR_YES_NO {
                     if ( @rows % $RECORDS_PER_INFILE_INSERT == 0 ) {
                         my $cb   = gen_exec_array_cb( \@rows );
                         my $rows = vs_db_insert( $dbh, $sth3, $cb,
-                            "Error when inserting entries into our mapr table.\n"
-                        );
-                        if ($rows) {
-                            @rows = ();
-                        }
-                        else {
-                            die "Something went wrong inserting, but somehow wasn't caught!\n";
-                        }
+                            "Error when inserting entries into our mapr table.\n");
+                        @rows = ();
                     }
                 }
             }
@@ -538,13 +493,7 @@ sub VNTR_YES_NO {
         my $cb   = gen_exec_array_cb( \@rows );
         my $rows = vs_db_insert( $dbh, $sth3, $cb,
             "Error when inserting entries into our mapr table.\n" );
-        if ($rows) {
-            @rows = ();
-        }
-        else {
-            die
-                "Something went wrong inserting, but somehow wasn't caught!\n";
-        }
+        @rows = ();
     }
 
     # create self support for refs
@@ -571,15 +520,14 @@ sub VNTR_YES_NO {
         my $cb   = gen_exec_array_cb( \@rows );
         my $rows = vs_db_insert( $dbh, $sth2, $cb,
             "Error when inserting entries into our ctrlnk table.\n" );
-        if ($rows) {
-            @rows = ();
-        }
-        else {
-            die
-                "Something went wrong inserting, but somehow wasn't caught!\n";
-        }
+        @rows = ();
     }
 
     return $varyes;
 }    # end of func
 
+sub nowhitespace($) {
+    my $string = shift;
+    $string =~ s/\s+//g;
+    return $string;
+}

@@ -228,7 +228,7 @@ int main( int argc, char *argv[] ) {
           "MAXERRORS MAX_FLANK_CONSIDERED MAXTHREADS PATLEN_SIZE_ERR\n\n" );
 
     outdir   = argv[1];
-    xmldir   = argv[2];
+    xmldir   = argv[2]; // never used
     filename = argv[3];
 
     if ( argc >= 5 ) {
@@ -275,7 +275,7 @@ int main( int argc, char *argv[] ) {
     }
 
     /* enter out dir */
-    if ( chdir( outdir ) ) {
+    if ( chdir( outdir ) ) { // should this be negated?
         mkdir( outdir, 0755 );
 
         if ( chdir( outdir ) ) {

@@ -6,17 +6,13 @@ use Cwd;
 use DBI;
 use List::Util qw[min max];
 use POSIX "strftime";
-use Carp qw(croak carp);
-use FindBin;
 use File::Basename;
 use Try::Tiny;
-use Data::Dumper;
+use FindBin;
 use lib "$FindBin::RealBin/lib";
-
 use vutil
     qw(get_config get_dbh set_statistics get_statistics gen_exec_array_cb vs_db_insert);
 
-my $RECORDS_PER_INFILE_INSERT = 100000;
 
 #use GD::Graph::linespoints;
 
@@ -29,22 +25,21 @@ final reports and VCF files
 
 # Argument parsing & set up
 my $argc = @ARGV;
-die "Usage: updaterefs.pl expects 6 arguments.\n"
-    unless $argc >= 6;
+die "Usage: updaterefs.pl expects 4 arguments.\n"
+    unless $argc >= 4;
 
 my $curdir        = getcwd();
-my $readpf        = $ARGV[0]; # read_profiles_folder
-my $rpfc          = $ARGV[1]; # read_profiles_folder_clean
-my $DBSUFFIX      = $ARGV[2]; # dbname
-my $cnf           = $ARGV[3]; # config_file
-my $result_prefix = $ARGV[4]; # latexfile
-my $VERSION       = $ARGV[5]; # VERSION
+my $DBSUFFIX      = $ARGV[0]; # dbname
+my $cnf           = $ARGV[1]; # config_file
+my $result_prefix = $ARGV[2]; # base of output file names
+my $VERSION       = $ARGV[3]; # VERSION
 
 my %run_conf = get_config("CONFIG", $cnf);
-my ( $HTTPSERVER, $MIN_SUPPORT_REQUIRED, $TEMPDIR )
-    = @run_conf{qw(SERVER MIN_SUPPORT_REQUIRED TMPDIR)};
+my ( $HTTPSERVER, $MIN_SUPPORT_REQUIRED)
+    = @run_conf{qw(SERVER MIN_SUPPORT_REQUIRED)};
 
-############################ Procedures ###############################################################
+my $RECORDS_PER_INFILE_INSERT = 100000;
+############################ Procedures ########################################
 
 =head1 FUNCTIONS
 
@@ -73,8 +68,6 @@ returns a VCF record as a string.
 =cut
 
 sub make_vcf_rec {
-    croak "make_vcf_rec requires one argument"
-        unless @_ == 1;
     my $supported_tr = shift;
 
     my $qual = ".";
@@ -82,7 +75,8 @@ sub make_vcf_rec {
     my $filter = ( $supported_tr->{is_singleton} == 1 ) ? "PASS" : "SC";
 
     my $info = sprintf(
-        "RC=%.2lf;RPL=%d;RAL=%d;RCP=%s;ALGNURL=http://%s/index.php?db=VNTRPIPE_%s&ref=-%d&isref=1&istab=1&ispng=1&rank=3",
+        "RC=%.2lf;RPL=%d;RAL=%d;RCP=%s;ALGNURL="
+        . "http://%s/index.php?db=VNTRPIPE_%s&ref=-%d&isref=1&istab=1&ispng=1&rank=3",
         $supported_tr->{copynum}, length( $supported_tr->{consenuspat} ),
         $supported_tr->{arlen},   $supported_tr->{consenuspat},
         $HTTPSERVER,              $DBSUFFIX,
@@ -118,7 +112,7 @@ sub nowhitespace($) {
 ####################################
 sub commify {
     my $input = shift;
-    carp "Undef input" unless defined $input;
+    warn "Undef input" unless defined $input;
     $input = reverse $input;
     $input =~ s/(\d\d\d)(?=\d)(?!\d*\.)/$1,/g;
     return reverse $input;
@@ -130,8 +124,6 @@ sub commify {
 # supported TRs are included in the file.
 
 sub print_vcf {
-
-    # my $allwithsupport = shift;
 
     # Get needed stats
     my @stats = qw(PARAM_TRF
@@ -365,10 +357,10 @@ sub print_distr {
     my %PHASH_SN_VN = ();
 
     open my $distrfh, ">", "${result_prefix}.span${MIN_SUPPORT_REQUIRED}.txt"
-        or die
-        "\nCan't open for reading ${result_prefix}.span${MIN_SUPPORT_REQUIRED}.txt\n";
-    print $distrfh
-        "\n\nPatternSize, All, Span1, PercentageS1, Span${MIN_SUPPORT_REQUIRED}, PercentageS${MIN_SUPPORT_REQUIRED}, VntrSpan${MIN_SUPPORT_REQUIRED}, PercentageVS${MIN_SUPPORT_REQUIRED}\n";
+        or die "\nCan't open for reading ${result_prefix}.span${MIN_SUPPORT_REQUIRED}.txt\n";
+    print $distrfh "\n\nPatternSize, All, Span1, PercentageS1,"
+        . " Span${MIN_SUPPORT_REQUIRED}, PercentageS${MIN_SUPPORT_REQUIRED},"
+        . " VntrSpan${MIN_SUPPORT_REQUIRED}, PercentageVS${MIN_SUPPORT_REQUIRED}\n";
 
     my $dbh = get_dbh( { readonly => 1, userefdb => 1 } );
 
@@ -554,8 +546,8 @@ sub print_distr {
     $tspan1 = 0;
 
     # 3
-    print $distrfh
-        "\n\nArraySize, All, Clustered, PercentageC, MappedFlanks, PercentageM, BBB, PercentageB, Span1, PercentageS\n";
+    print $distrfh "\n\nArraySize, All, Clustered, PercentageC, MappedFlanks,"
+        . " PercentageM, BBB, PercentageB, Span1, PercentageS\n";
     $sth = $dbh->prepare(
         q{SELECT (lastindex - firstindex + 1)  as arraysize, count(distinct rid)
         FROM refdb.fasta_ref_reps
@@ -1350,7 +1342,8 @@ sub print_latex {
 # CRDE (Cyclic Redundancy Elimination) -- left after cyclic redundancy elimination
 # PC (Profile Clustered) -- PROCLU clustered into a cluster with at least one reference and at least one read
 # MAP (Mapped) -- flank TTT clustered into a cluster with one reference and at least one read
-# TIE-OK -- applies to a read which is MAP, but may appear in more than one flank TTT cluster (due to ties or no flanking sequence)
+# TIE-OK -- applies to a read which is MAP, but may appear in more than one flank TTT cluster
+#    (due to ties or no flanking sequence)
 # ADDBACK -- includes those eliminated by CRDE, but added back for TTT flank alignment
 # SINGLETON -- PC into a cluster with EXACTLY ONE REFERENCE and MAP
 # DISTINGUISHABLE -- PC into a cluster with MORE THAN ONE REFERENCE but flank distinguishable and MAP
@@ -1415,7 +1408,8 @@ sub print_latex {
         = $sum_span1;    # INITIAL REF-TRs RDE GE7 PC ADDBACK MAP SPAN1
     my $refTRsMappedSpanN
         = $sum_spanN;    # INITIAL REF-TRs RDE GE7 PC ADDBACK MAP SPANN
-     #my $refTRsMappedSingleton = GetStatistics("NUMBER_REFS_SINGLE_REF_CLUSTER_WITH_READS_MAPPED");  # INITIAL REF-TRs RDE GE7 PC ADDBACK MAP SINGLETON
+    # INITIAL REF-TRs RDE GE7 PC ADDBACK MAP SINGLETON
+    #my $refTRsMappedSingleton = GetStatistics("NUMBER_REFS_SINGLE_REF_CLUSTER_WITH_READS_MAPPED");
 
     # INITIAL READ-TRs RDE GE7 PC ADDBACK MAP SINGLETON
     my $readTRsMappedToSingleton = 0;
@@ -1435,19 +1429,11 @@ sub print_latex {
     }
 
     unless ( $readTRsMapped
-        == $readTRsMappedToIndistinguishable + $readTRsMappedToSingleton )
-    {
-        print Dumper(
-            [   $readTRsMapped,
-                $readTRsMappedToIndistinguishable,
-                $readTRsMappedToSingleton
-            ]
-        ) . "\n";
-        die
-            "Error: mismatch of sum of mapped read TRs by distinguishablility and total read TRs mapped. "
-            . "(Expected $readTRsMapped, got "
-            . (
-            $readTRsMappedToIndistinguishable + $readTRsMappedToSingleton )
+        == $readTRsMappedToIndistinguishable + $readTRsMappedToSingleton ) {
+        die "Error: mismatch of sum of mapped read TRs by distinguishablility and total read TRs mapped. "
+            . "(Expected $readTRsMapped, got"
+            . " $readTRsMappedToIndistinguishable + $readTRsMappedToSingleton = "
+            . ($readTRsMappedToIndistinguishable + $readTRsMappedToSingleton )
             . ")\n";
     }
 
@@ -1491,38 +1477,25 @@ sub print_latex {
     $refTRsMappedIndistinguishable
         = $InvarTRsMappedIndistinguishable + $VNTRasIndistinguishable;
 
-    unless ( $refTRsMapped
-        == $refTRsMappedIndistinguishable + $refTRsMappedSingleton )
-    {
-        warn Dumper(
-            \(  $refTRsMappedSingleton,
-                $InvarTRsMappedSingleton,
-                $VNTRasSingleton,
-                $refTRsMappedIndistinguishable,
-                $InvarTRsMappedIndistinguishable,
-                $VNTRasIndistinguishable
-            )
-        );
-        die
-            "Error: mismatch of sum of mapped ref TRs by distinguishablility and total ref TRs mapped. "
+    unless ( $refTRsMapped == $refTRsMappedIndistinguishable + $refTRsMappedSingleton ) {
+        die "Error: mismatch of sum of mapped ref TRs by distinguishablility and total ref TRs mapped. "
             . "(Expected $refTRsMapped, got '$refTRsMappedIndistinguishable' + '$refTRsMappedSingleton' = '"
             . ( $refTRsMappedIndistinguishable + $refTRsMappedSingleton )
             . "')\n";
     }
 
-    my $refWithSupport
-        = $sum_has_support;   # INITIAL REF-TRs RDE GE7 PC ADDBACK MAP SUPPORT
-    my $refAsHomozygousSame = $sum_homez_same
-        ;    # INITIAL REF-TRs RDE GE7 PC ADDBACK MAP SUPPORT HOMZYGOUS SAME
-    my $refAsHomozygousDiff = $sum_homez_diff
-        ;    # INITIAL REF-TRs RDE GE7 PC ADDBACK MAP SUPPORT HOMZYGOUS DIFF
-    my $refAsHeterozygousSame = $sum_hetez_same
-        ;   # INITIAL REF-TRs RDE GE7 PC ADDBACK MAP SUPPORT HETEROZYGOUS SAME
-    my $refAsHeterozygousDiff = $sum_hetez_diff
-        ;   # INITIAL REF-TRs RDE GE7 PC ADDBACK MAP SUPPORT HETEROZYGOUS DIFF
-    my $refAsMulti = $sum_hetez_multi
-        ;    # INITIAL REF-TRs RDE GE7 PC ADDBACK MAP SUPPORT MULTI
-
+    # INITIAL REF-TRs RDE GE7 PC ADDBACK MAP SUPPORT
+    my $refWithSupport = $sum_has_support;
+    # INITIAL REF-TRs RDE GE7 PC ADDBACK MAP SUPPORT HOMZYGOUS SAME
+    my $refAsHomozygousSame = $sum_homez_same;
+    # INITIAL REF-TRs RDE GE7 PC ADDBACK MAP SUPPORT HOMZYGOUS DIFF
+    my $refAsHomozygousDiff = $sum_homez_diff;
+    # INITIAL REF-TRs RDE GE7 PC ADDBACK MAP SUPPORT HETEROZYGOUS SAME
+    my $refAsHeterozygousSame = $sum_hetez_same;
+    # INITIAL REF-TRs RDE GE7 PC ADDBACK MAP SUPPORT HETEROZYGOUS DIFF
+    my $refAsHeterozygousDiff = $sum_hetez_diff;
+    # INITIAL REF-TRs RDE GE7 PC ADDBACK MAP SUPPORT MULTI
+    my $refAsMulti = $sum_hetez_multi;
     # ***************************************************
 
     # formatted to show commas at thousands
@@ -1698,9 +1671,11 @@ sub print_latex {
     my $form_readsMapped   = "";
     my $percentReadsMapped = $form_readsMapped;
 
-    $sth
-        = $dbh->prepare(
-        "SELECT count(distinct head) FROM map INNER JOIN replnk ON map.readid=replnk.rid INNER JOIN fasta_reads ON fasta_reads.sid=replnk.sid  WHERE bbb=1;"
+    $sth = $dbh->prepare(qq{
+            SELECT count(distinct head)
+            FROM map INNER JOIN replnk ON map.readid=replnk.rid
+                INNER JOIN fasta_reads ON fasta_reads.sid=replnk.sid
+            WHERE bbb=1;}
         ) or die "Couldn't prepare statement: " . $dbh->errstr;
     $sth->execute() or die "Cannot execute: " . $sth->errstr();
     {
@@ -1971,7 +1946,7 @@ my $query = qq{INSERT INTO main.fasta_ref_reps
             hetez_same, hetez_diff, hetez_multi, support_vntr,
             support_vntr_span1)
         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-    };
+};
 
 my $update_ref_table_sth = $dbh->prepare($query)
     or die "Couldn't prepare statement: " . $dbh->errstr;
@@ -2065,7 +2040,6 @@ while ( my @data = $get_supported_reftrs_sth->fetchrow_array() ) {
             || $ref->{hetez_diff}
             || $ref->{hetez_multi} );
 
-    ( $ENV{DEBUG} ) && warn "Saving ref entry: " . Dumper($ref) . "\n";
     push(
         @supported_refTRs,
 
@@ -2086,15 +2060,8 @@ while ( my @data = $get_supported_reftrs_sth->fetchrow_array() ) {
     if ( @supported_refTRs % $RECORDS_PER_INFILE_INSERT == 0 ) {
         my $cb   = gen_exec_array_cb( \@supported_refTRs );
         my $rows = vs_db_insert( $dbh, $update_ref_table_sth, $cb,
-            "Error when inserting entries into our supported reference TRs table. Row dump: "
-                . Dumper( \@supported_refTRs ) );
-        if ($rows) {
-            @supported_refTRs = ();
-        }
-        else {
-            die
-                "Something went wrong inserting, but somehow wasn't caught!\n";
-        }
+            "Error when inserting entries into our supported reference TRs table.");
+        @supported_refTRs = ();
     }
 }
 
@@ -2104,18 +2071,11 @@ my $updfromtable = $i;
 if (@supported_refTRs) {
     my $cb   = gen_exec_array_cb( \@supported_refTRs );
     my $rows = vs_db_insert( $dbh, $update_ref_table_sth, $cb,
-        "Error when inserting entries into our supported reference TRs table. Row dump: "
-            . Dumper( \@supported_refTRs ) );
-    if ($rows) {
-        @supported_refTRs = ();
-    }
-    else {
-        die "Something went wrong inserting, but somehow wasn't caught!\n";
-    }
+        "Error when inserting entries into our supported reference TRs table.");
+    @supported_refTRs = ();
 }
 if ( $updfromtable != $supported_vntr_count ) {
-    die
-        "Updated number of entries($updfromtable) not equal to the number of references, aborting!";
+    die "Updated number of entries($updfromtable) not equal to the number of references, aborting!";
 }
 
 # updating stats table
@@ -2227,11 +2187,11 @@ $dbh->do("PRAGMA temp_store = 0");
 $dbh->do("PRAGMA main.optimize");
 $dbh->disconnect();
 
-print "Producing output LaTeX file.\n";
-print_latex($ReadTRsSupport);
+#print "Producing output LaTeX file.\n";
+#print_latex($ReadTRsSupport);
 
-print "Producing distribution file.\n";
-print_distr();
+#print "Producing distribution file.\n";
+#print_distr();
 
 # Print VCF
 print "Producing VCFs.\n";

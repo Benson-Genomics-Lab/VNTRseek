@@ -16,23 +16,19 @@ use vutil
     qw(trim get_config get_dbh set_statistics gen_exec_array_cb vs_db_insert);
 use Data::Dumper;
 
-################ main ####################
-warn strftime( "Start: %F %T\n\n", localtime );
+print strftime( "Start: %F %T\n\n", localtime );
 
+# Arguments
 my $argc = @ARGV;
-die "Usage: insert_reads.pl expects 9 arguments.\n"
-    unless $argc >= 9;
+die "Usage: insert_reads.pl expects 5 arguments.\n"
+    unless $argc >= 5;
 
 my $curdir          = getcwd();
 my $clusterfile     = $ARGV[0];
 my $indexfolder     = $ARGV[1];
-my $fastafolder     = $ARGV[2]; # not used
-my $rotatedfolder   = $ARGV[3];
-my $rotatedreffile  = $ARGV[4];
-my $strip454        = $ARGV[5];
-my $cnf             = $ARGV[6];
-my $TEMPDIR         = $ARGV[7];
-my $IS_PAIRED_READS = $ARGV[8];
+my $rotatedfolder   = $ARGV[2];
+my $strip454        = $ARGV[3];
+my $cnf             = $ARGV[4];
 
 my %run_conf = get_config("CONFIG", $cnf);
 my $dbh = get_dbh()
@@ -100,6 +96,7 @@ my $sth = $dbh->prepare(
 $timestart = time();
 print "Reading index file and storing relevant entries in database.\n";
 
+# KA: More file greps
 opendir( DIR, $indexfolder );
 my @filelist   = readdir(DIR);
 my @indexfiles = sort grep( /\.(?:index\.renumbered)$/, @filelist );
@@ -253,8 +250,9 @@ for my $read_file (@readfiles) {
 
             $processed++;
 
+            # KA: Aren't the 454 tags stripped by step 8?
             if ( $strip454 eq "1" && $dnastr !~ s/^TCAG//i ) {
-                warn "Read does not start with keyseq TCAG : "
+                warn "(insert_reads.pl) Read does not start with keyseq TCAG : "
                     . $dnabak . " (" . $headstr . ")\n";
             }
 
@@ -313,7 +311,7 @@ else {
 
 print "Processing complete (insert_reads.pl).\n";
 
-warn strftime( "\nEnd: %F %T\n\n", localtime );
+print strftime( "\nEnd: %F %T\n\n", localtime );
 
 1;
 

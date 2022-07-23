@@ -41,7 +41,7 @@ use File::Path "remove_tree";
 use File::Temp;
 
 # use POSIX qw(strftime);
-use Getopt::Long qw(GetOptionsFromArray);
+use Getopt::Long "GetOptionsFromArray";
 use List::Util qw(min max);
 use lib ( "$FindBin::RealBin/lib", "$FindBin::RealBin/local/lib/perl5" );
 use vutil
@@ -138,7 +138,8 @@ validate_config();
 
 # the output of the pipeline, ex: "/bfdisk/vntr_$DBSUFFIX";
 my $output_folder = "$opts{OUTPUT_ROOT}/vntr_$opts{DBSUFFIX}";
-mkdir $output_folder unless -e $output_folder;
+die "Cannot access output folder at $output_folder. Check permissions."
+    unless (-r -w -e $output_folder or mkdir $output_folder);
 
 # Write out a terse config file to output directory.
 my $config_file = print_config();
@@ -192,13 +193,6 @@ my $read_profiles_folder = "$output_folder/data_out/";
 # this is where renumbered and non-cyclicly redundant leb36 files will go
 my $read_profiles_folder_clean = "$output_folder/data_out_clean/";
 
-# this is where edges are calculated
-my $edges_folder = "$opts{TMPDIR}/vntr_$opts{DBSUFFIX}/edges/";
-
-my $DBNAME     = "VNTRPIPE_$opts{DBSUFFIX}";
-my $HTTPSERVER = "$opts{SERVER}/vntrview";
-
-
 # clustering parameters (only cutoffs, other nonessantial paramters are in run_proclu.pl
 my $PROCLU_EXECUTABLE = "psearch.exe";
 my $CLUST_PARAMS      = " 88 ";
@@ -224,7 +218,7 @@ my @executables = (
     "flankalign.exe", "refflankalign.exe", "pcr_dup.exe", "join_clusters.exe");
 
 for my $exec (@executables) {
-    die("'$exec' not executable!") unless (-e $exec and -x _);
+    die("'$exec' not executable!") unless (-x -e $exec);
 }
 
 ################################################################
@@ -385,24 +379,16 @@ if ( $STEP != 0 ) {
 ####################################
 
 if ( $STEP == 0 ) {
-
+    print "Executing step #$STEP (creating database).\n";
     $timestart = time();
 
-    print "Executing step #$STEP (creating database).\n";
-
-    # This function checks if the output directory exists,
-    # and creates it if it doesn't exist.
     write_sqlite();
-
-    if ( !-e "$read_profiles_folder" && !mkdir("$read_profiles_folder") ) {
-        warn "Warning: Failed to create output directory!\n";
-    }
 
     set_statistics(
         {   MAP_ROOT             => $install_dir,
-            N_MIN_SUPPORT        => $opts{MIN_SUPPORT_REQUIRED},
-            MIN_FLANK_REQUIRED   => $opts{MIN_FLANK_REQUIRED},
-            MAX_FLANK_CONSIDERED => $opts{MAX_FLANK_CONSIDERED},
+            N_MIN_SUPPORT        => $opts{'MIN_SUPPORT_REQUIRED'},
+            MIN_FLANK_REQUIRED   => $opts{'MIN_FLANK_REQUIRED'},
+            MAX_FLANK_CONSIDERED => $opts{'MAX_FLANK_CONSIDERED'},
             TIME_MYSQLCREATE     => time() - $timestart,
         }
     );
@@ -417,21 +403,29 @@ if ( $STEP == 0 ) {
 }
 
 if ( $STEP == 1 ) {
-    unlink glob "${read_profiles_folder}/*.clu";
-
     print "Executing step #$STEP (searching for tandem repeats in reads,"
-         . " producing profiles and sorting)...\n";
-    my $extra_param  = ( $opts{STRIP_454_KEYTAGS} ) ? '-s' : '';
-    my $extra_param2 = ( $opts{IS_PAIRED_READS} )   ? '-r' : '';
-
+             . " producing profiles and sorting)...\n";
     $timestart = time();
-    my $exstring = "$install_dir/run_trf_ng.pl"
-                   . qq( -t "$TRF_PARAM")
-                   . qq( -u "$TRF2PROCLU_PARAM")
-                   . " $extra_param $extra_param2"
-                   . " -p $opts{NPROCESSES}"
-                   . qq( "$opts{INPUT_DIR}" "$read_profiles_folder");
-    my $trf_out = qx($exstring);
+
+    # Prep
+    die "Failed to create output directory $read_profiles_folder.\n"
+        unless -e "$read_profiles_folder" or mkdir("$read_profiles_folder");
+
+    unlink glob "$read_profiles_folder/*.indexhist";
+    unlink glob "$read_profiles_folder/*.index";
+    unlink glob "$read_profiles_folder/*.leb36";
+    unlink glob "$read_profiles_folder/*.reads";
+
+    # Exec
+    system("./run_trf_ng.pl",
+        $opts{'INPUT_DIR'},
+        $read_profiles_folder,
+        $config_file,
+        $TRF_PARAM,
+        $TRF2PROCLU_PARAM,
+        $opts{'STRIP_454_KEYTAGS'},
+        $opts{'IS_PAIRED_READS'},
+        $opts{'NPROCESSES'});
     if ( $? == -1 ) {
         SetError( $STEP, "command failed: $!", -1 );
         die "command failed: $!\n";
@@ -444,29 +438,12 @@ if ( $STEP == 1 ) {
         }
     }
 
-    my %trf_res = (
-        reads             => 0,
-        num_trs_ge7       => 0,
-        num_trs           => 0,
-        num_reads_trs_ge7 => 0,
-        num_reads_trs     => 0,
-    );
-
-    while ( $trf_out =~ /(\w+):(\d+),?/mg ) {
-        next unless exists $trf_res{$1};
-        $trf_res{$1} = $2;
-    }
-
+    # Wrap
     set_statistics(
         {   PARAM_TRF                => $TRF_PARAM,
-            FOLDER_FASTA             => $opts{INPUT_DIR},
+            FOLDER_FASTA             => $opts{'INPUT_DIR'},
             FOLDER_PROFILES          => $read_profiles_folder,
             TIME_TRF                 => time() - $timestart,
-            NUMBER_READS             => $trf_res{reads},
-            NUMBER_TRS_IN_READS_GE7  => $trf_res{num_trs_ge7},
-            NUMBER_TRS_IN_READS      => $trf_res{num_trs},
-            NUMBER_READS_WITHTRS_GE7 => $trf_res{num_reads_trs_ge7},
-            NUMBER_READS_WITHTRS     => $trf_res{num_reads_trs},
         }
     );
     set_datetime("DATE_TRF");
@@ -477,11 +454,13 @@ if ( $STEP == 1 ) {
 }
 
 if ( $STEP == 2 ) {
-
     print "Executing step #$STEP (reassigning IDs to repeats).\n";
     $timestart = time();
 
-    system("./renumber.pl $read_profiles_folder");
+    unlink glob "$read_profiles_folder/*.leb36.renumbered";
+    unlink glob "$read_profiles_folder/*.index.renumbered";
+
+    system("./renumber.pl", $read_profiles_folder);
     if ( $? == -1 ) {
         SetError( $STEP, "command failed: $!", -1 );
         die "command failed: $!\n";
@@ -495,14 +474,14 @@ if ( $STEP == 2 ) {
         }
     }
 
+    # KA: Why are these set here? The reference is not used here.
     set_statistics(
-        {   FILE_REFERENCE_LEB => $opts{REFERENCE} . ".leb36",
-            FILE_REFERENCE_SEQ => $opts{REFERENCE} . ".seq",
+        {   FILE_REFERENCE_LEB => $opts{'REFERENCE'} . ".leb36",
+            FILE_REFERENCE_SEQ => $opts{'REFERENCE'} . ".seq",
             TIME_RENUMB        => time() - $timestart,
         }
     );
     set_datetime("DATE_RENUMB");
-
     print "Done!\n\n";
 
     if    ( $STEPEND == $STEP ) { $STEP = 100; }
@@ -510,28 +489,17 @@ if ( $STEP == 2 ) {
 }
 
 if ( $STEP == 3 ) {
-
-    if ( -d $read_profiles_folder_clean ) {
-        remove_tree( $read_profiles_folder_clean,
-            { safe => 1, error => \my $err } );
-        if ( $err && @$err ) {
-            my $errstr = "Error removing clean read profiles directory: "
-                . $err->[0];
-            SetError( $STEP, $errstr, -1 );
-            die $errstr, "\n";
-        }
-    }
-
+    print "Executing step #$STEP (eliminating cyclic redundancies).\n";
     $timestart = time();
-
     # TODO Remove this and/or replace with something that one-time
     # generates an leb36 file with the right ref set seqs.
     # END TODO
-    print "Executing step #$STEP (eliminating cyclic redundancies).\n";
 
-    if ( !mkdir("$read_profiles_folder_clean") ) {
-        warn "\nWarning: Failed to create output directory!\n";
-    }
+    die "Failed to create output directory $read_profiles_folder_clean.\n"
+        unless -e $read_profiles_folder_clean or mkdir $read_profiles_folder_clean;
+
+    unlink glob "$read_profiles_folder_clean/*.allreads.leb36";
+    unlink glob "$read_profiles_folder_clean/*.allreads.leb36.rotindex";
 
     # Run redund.exe on read TRs
     system("./redund.exe",
@@ -581,13 +549,12 @@ if ( $STEP == 3 ) {
 }
 
 if ( $STEP == 4 ) {
-
-    unlink glob "${read_profiles_folder_clean}/*.clu";
-    unlink glob "${read_profiles_folder_clean}/*.cnf";
-    unlink glob "${read_profiles_folder_clean}/*.proclu_log";
-
-    $timestart = time();
     print "Executing step #$STEP (bipartite clustering of TR profiles).\n";
+    $timestart = time();
+
+    # Prep
+    unlink glob "$read_profiles_folder_clean/*.clu";
+    unlink glob "$read_profiles_folder_clean/*.proclu_log";
 
     system("./checkleb36.pl",
         $read_profiles_folder_clean);
@@ -603,11 +570,11 @@ if ( $STEP == 4 ) {
         }
     }
 
-# 0 for maxerror, means psearch will pick maxerror based on individual flanklength
-# TODO Maybe rewrite run_proclu and psearch to use SQLite db.
-# psearch output can still be files but this step will then collect them and
-# insert into the db. (Maybe merge in next step's `join_clusters.exe`)
-# For now, extract the file we need using the database
+    # 0 for maxerror, means psearch will pick maxerror based on individual flanklength
+    # TODO Maybe rewrite run_proclu and psearch to use SQLite db.
+    # psearch output can still be files but this step will then collect them and
+    # insert into the db. (Maybe merge in next step's `join_clusters.exe`)
+    # For now, extract the file we need using the database
     my $dbh = get_ref_dbh( $opts{REFERENCE}, { redo => $opts{REDO_REFDB} } );
 
     # Filtered file, ordered by min representation as given by redund
@@ -621,7 +588,7 @@ if ( $STEP == 4 ) {
     my $get_filtered_set_profiles_sth = $dbh->prepare($get_ref_leb36);
     my $reference_folder              = File::Temp->newdir();
 
-    $get_filtered_set_profiles_sth->execute;
+    $get_filtered_set_profiles_sth->execute();
     open my $tmp_filt_file_fh, ">", "$reference_folder/reference.leb36";
     while ( my @fields = $get_filtered_set_profiles_sth->fetchrow_array ) {
         print $tmp_filt_file_fh join( " ", @fields ) . "\n";
@@ -707,7 +674,6 @@ if ( $STEP == 4 ) {
             TIME_PROCLU  => time() - $timestart,
         }
     );
-
     set_datetime("DATE_PROCLU");
     print "Done!\n\n";
 
@@ -716,9 +682,10 @@ if ( $STEP == 4 ) {
 }
 
 if ( $STEP == 5 ) {
-
-    $timestart = time();
     print "Executing step #$STEP (joining clusters from different proclu runs on reference ids).\n";
+    $timestart = time();
+
+    unlink "$read_profiles_folder_clean/all.clusters";
 
     system("./join_clusters.exe",
         $read_profiles_folder_clean,
@@ -754,8 +721,8 @@ if ( $STEP == 6 ) {
 }
 
 if ( $STEP == 7 ) {
-    $timestart = time();
     print "\nStep #$STEP is empty.\n\n";
+    $timestart = time();
 
     set_statistics( { TIME_DB_INSERT_REFS => time() - $timestart } );
     set_datetime("DATE_DB_INSERT_REFS");
@@ -765,36 +732,32 @@ if ( $STEP == 7 ) {
 }
 
 if ( $STEP == 8 ) {
-
     print "Executing step #$STEP (inserting READS flanks into database).\n";
-
     $timestart = time();
 
-    # Get rotindex saved in db
-    my $dbh = get_ref_dbh( $opts{REFERENCE}, { redo => $opts{REDO_REFDB} } );
-    my ($rotindex_str) = $dbh->selectrow_array('SELECT rotindex FROM files');
-    $dbh->disconnect();
-    die "Error getting rotindex file. Try rerunning with --redo_refdb option.\n"
-        unless $rotindex_str;
+    unlink "$read_profiles_folder_clean/allwithdups.clusters";
 
-    my $reference_folder = File::Temp->newdir();
-    open my $tmp_rotindex, ">", "$reference_folder/reference.leb36.rotindex";
+    # Get rotindex saved in db
+    #my $dbh = get_ref_dbh( $opts{REFERENCE}, { redo => $opts{REDO_REFDB} } );
+    #my ($rotindex_str) = $dbh->selectrow_array('SELECT rotindex FROM files');
+    #$dbh->disconnect();
+    #die "Error getting rotindex file. Try rerunning with --redo_refdb option.\n"
+    #    unless $rotindex_str;
+
+    #my $reference_folder = File::Temp->newdir();
+    #open my $tmp_rotindex, ">", "$reference_folder/reference.leb36.rotindex";
 
     # Need to negate all indices
-    $rotindex_str =~ s/(\d+)/-$1/g;
-    print $tmp_rotindex $rotindex_str;
-    close $tmp_rotindex;
+    #$rotindex_str =~ s/(\d+)/-$1/g;
+    #print $tmp_rotindex $rotindex_str;
+    #close $tmp_rotindex;
 
     system("./insert_reads.pl",
         "$read_profiles_folder_clean/all.clusters",
         $read_profiles_folder,
-        $opts{'INPUT_DIR'},
         $read_profiles_folder_clean,
-        "$reference_folder/reference.leb36.rotindex",
         $opts{'STRIP_454_KEYTAGS'},
-        $config_file,
-        $opts{'TMPDIR'},
-        $opts{'IS_PAIRED_READS'});
+        $config_file);
     if ( $? == -1 ) {
         SetError( $STEP, "command failed: $!", -1 );
         die "command failed: $!\n";
@@ -817,15 +780,19 @@ if ( $STEP == 8 ) {
 }
 
 if ( $STEP == 9 ) {
-
-    $timestart = time();
     print "Executing step #$STEP (outputting flanks inside each cluster).\n";
+    $timestart = time();
+
+    my $tmpo = "$opts{TMPDIR}/vntr_$opts{DBSUFFIX}";
+    die "Failed to create output directory $tmpo.\n"
+        unless -r -w -e $tmpo or mkdir $tmpo;
+    unlink "$tmpo/ref.txt"
+    unlink "$read_profiles_folder_clean/allwithdups.flanks";
 
     system("./run_flankcomp.pl",
         "$read_profiles_folder_clean/allwithdups.clusters",
-        $opts{'DBSUFFIX'},
         $config_file,
-        $opts{'TMPDIR'},
+        $tmpo,
         "$read_profiles_folder_clean/allwithdups.flanks");
     if ( $? == -1 ) {
         SetError( $STEP, "command failed: $!", -1 );
@@ -849,20 +816,17 @@ if ( $STEP == 9 ) {
 }
 
 if ( $STEP == 10 ) {
-
+    print "Executing step #$STEP (aligning ref-read flanks).\n";
     $timestart = time();
 
-    system("rm -Rf ${read_profiles_folder_clean}/out");
-
-    if ( !mkdir("${read_profiles_folder_clean}/out") ) {
-        warn "\nWarning: Failed to create output directory!\n";
-    }
-
-    print "Executing step #$STEP (aligning ref-read flanks).\n";
+    my $outf = "$read_profiles_folder_clean/out";
+    die "Failed to create output directory $outf.\n"
+        unless -r -w -e $outf or mkdir $outf;
+    unlink glob "$outf/*";
 
 # 0 for maxerror, means flankalign will pick maxerror based on individual flanklength
     system("./flankalign.exe",
-        "$read_profiles_folder_clean/out",
+        $outf,
         "$read_profiles_folder_clean/result",
         "$read_profiles_folder_clean/allwithdups.flanks",
         0,
@@ -890,8 +854,8 @@ if ( $STEP == 10 ) {
 }
 
 if ( $STEP == 11 ) {
-    $timestart = time();
     print "Step #$STEP is empty.\n\n";
+    $timestart = time();
 
     set_statistics( { TIME_MAP_REFFLANKS => time() - $timestart } );
     set_datetime("DATE_MAP_REFFLANKS");
@@ -901,21 +865,12 @@ if ( $STEP == 11 ) {
 }
 
 if ( $STEP == 12 ) {
-
-    $timestart = time();
-
-    system("rm -Rf ${read_profiles_folder_clean}/result");
-
-    if ( !mkdir("${read_profiles_folder_clean}/result") ) {
-        warn "\nWarning: Failed to create output result directory!\n";
-    }
-
     print "Executing step #$STEP (inserting map and rankflank information into database).\n";
+    $timestart = time();
 
     system("./run_rankflankmap.pl",
         "$read_profiles_folder_clean/allwithdups.clusters",
         "$read_profiles_folder_clean/out",
-        $opts{'TMPDIR'},
         $config_file);
     if ( $? == -1 ) {
         SetError( $STEP, "command failed: $!", -1 );
@@ -942,9 +897,13 @@ if ( $STEP == 12 ) {
 }
 
 if ( $STEP == 13 ) {
-
-    $timestart = time();
     print "Executing step #$STEP (calculating edges).\n";
+    $timestart = time();
+
+    my $edges_folder = "$opts{TMPDIR}/vntr_$opts{DBSUFFIX}/edges/";
+    die "Failed to create output directory $edges_folder.\n"
+        unless -r -w -e $edges_folder or mkdir $edges_folder;
+    unlink glob "$edges_folder/*";
 
     system("./run_edges.pl",
         $opts{'REFERENCE'},
@@ -977,13 +936,15 @@ if ( $STEP == 13 ) {
 }
 
 if ( $STEP == 14 ) {
-
-    $timestart = time();
     print "Executing step #$STEP (generating .index files for pcr_dup).\n";
+    $timestart = time();
 
-    system("./extra_index.pl",
-        "$read_profiles_folder_clean/best",
-        $config_file);
+    my $bestf = "$read_profiles_folder_clean/best";
+    die "Failed to create output directory $bestf.\n"
+        unless -r -w -e $bestf or mkdir $betf;
+    unlink glob "$bestf/*.seq";
+
+    system("./extra_index.pl", $bestf, $config_file);
     if ( $? == -1 ) {
         SetError( $STEP, "command failed: $!", -1 );
         die "command failed: $!\n";
@@ -1006,20 +967,24 @@ if ( $STEP == 14 ) {
 }
 
 if ( $STEP == 15 ) {
-
-    $timestart = time();
     print "Executing step #$STEP (calculating PCR duplicates).\n";
+    $timestart = time();
+
     if ( $opts{KEEPPCRDUPS} ) {
         print "Notice: Not removing detected PCR duplicates\n";
     }
 
+    unlink glob "$read_profiles_folder_clean/best/*.seq.pcr_dup";
+    unlink "$output_folder/$opts{DBSUFFIX}.pcr_dup.txt";
+    unlink "$output_folder/$opts{DBSUFFIX}.ties.txt";
+    unlink "$output_folder/$opts{DBSUFFIX}.ties_entries.txt";
+
     system("./pcr_dup.pl",
         "$read_profiles_folder_clean/best",
-        $read_profiles_folder_clean,
+        $output_folder,
         $opts{'DBSUFFIX'},
         $config_file,
         $opts{'NPROCESSES'},
-        $opts{'TMPDIR'},
         $opts{'KEEPPCRDUPS'});
     if ( $? == -1 ) {
         SetError( $STEP, "command failed: $!", -1 );
@@ -1042,14 +1007,14 @@ if ( $STEP == 15 ) {
 }
 
 if ( $STEP == 16 ) {
-
-    $timestart = time();
     print "Executing step #$STEP (removing mapped duplicates).\n";
+    $timestart = time();
+
+    unlink "$output_folder/$opts{DBSUFFIX}.map_dup.txt";
 
     system("./map_dup.pl",
         $config_file,
-        $opts{'TMPDIR'},
-        "$read_profiles_folder_clean/result/$opts{DBSUFFIX}.map_dup.txt");
+        "$output_folder/$opts{DBSUFFIX}.map_dup.txt");
     if ( $? == -1 ) {
         SetError( $STEP, "command failed: $!", -1 );
         die "command failed: $!\n";
@@ -1071,16 +1036,13 @@ if ( $STEP == 16 ) {
 }
 
 if ( $STEP == 17 ) {
-
-    $timestart = time();
     print "Executing step #$STEP (computing variability).\n";
+    $timestart = time();
 
     system("./run_variability.pl",
         "$read_profiles_folder_clean/allwithdups.clusters",
-        "$read_profiles_folder_clean/out",
         $config_file,
-        $opts{'MIN_FLANK_REQUIRED'},
-        $opts{'TMPDIR'});
+        $opts{'MIN_FLANK_REQUIRED'});
     if ( $? == -1 ) {
         SetError( $STEP, "command failed: $!", -1 );
         die "command failed: $!\n";
@@ -1102,8 +1064,8 @@ if ( $STEP == 17 ) {
 }
 
 if ( $STEP == 18 ) {
-    $timestart = time();
     print "Step #$STEP is empty.\n\n";
+    $timestart = time();
 
     set_statistics( { TIME_ASSEMBLYREQ => time() - $timestart } );
     set_datetime("DATE_ASSEMBLYREQ");
@@ -1113,9 +1075,8 @@ if ( $STEP == 18 ) {
 }
 
 if ( $STEP == 19 ) {
-
-    $timestart = time();
     print "Executing step #$STEP (final database update).\n";
+    $timestart = time();
 
     unless ( get_statistics(qw(NUMBER_TRS_IN_READS)) ) {
 
@@ -1124,9 +1085,9 @@ if ( $STEP == 19 ) {
         # executed)
         print "Setting additional statistics.\n";
         system("./setdbstats.pl",
-            "$read_profiles_folder",
-            "$read_profiles_folder_clean",
-            "$config_file");
+            $read_profiles_folder,
+            $read_profiles_folder_clean,
+            $config_file);
         if ( $? == -1 ) {
             SetError( $STEP, "command failed: $!", -1 );
             die "command failed: $!\n";
@@ -1140,13 +1101,13 @@ if ( $STEP == 19 ) {
         }
     }
 
-    # further output files (vcf)
+    unlink glob "$output_folder/*.vcf";
+
+    # further output files (vcfs)
     system("./updaterefs.pl",
-        $read_profiles_folder,
-        $read_profiles_folder_clean,
         $opts{'DBSUFFIX'},
         $config_file,
-        "${read_profiles_folder_clean}/result/${DBNAME}",
+        "$output_folder/$opts{DBSUFFIX}",
         $VERSION);
     if ( $? == -1 ) {
         SetError( $STEP, "command failed: $!", -1 );
@@ -1160,12 +1121,12 @@ if ( $STEP == 19 ) {
         }
     }
 
-    # create symlink to html dir so can be browsed from internet
-    symlink(
-        "${read_profiles_folder_clean}/result",
-        "$opts{HTML_DIR}/$opts{DBSUFFIX}"
-    ) if ( exists $opts{HTML_DIR}
-           && !( -e "$opts{HTML_DIR}/$opts{DBSUFFIX}/result" ) );
+    # Create reduced database
+    my $dbfile = "$output_folder/$opts{DBSUFFIX}.db";
+    my $dbfile2 = "$output_folder/$opts{DBSUFFIX}_rl$opts{READ_LENGTH}.db";
+    print "Reducing database.\n";
+    system("sqlite3 $dbfile < reduced_db.sql");
+    system("mv temp_reduced.db $dbfile2");
 
     # cleanup
     print "Cleanup Time!\n";
@@ -1175,14 +1136,6 @@ if ( $STEP == 19 ) {
 
     set_statistics( { TIME_REPORTS => time() - $timestart } );
     set_datetime("DATE_REPORTS");
-
-    # Create reduced database
-    my $dbfile = "$output_folder/$opts{DBSUFFIX}.db";
-    my $dbfile2 = "$output_folder/$opts{DBSUFFIX}_rl$opts{READ_LENGTH}.db";
-    print "Finalizing:\n$dbfile\nbeing reduced into\n$dbfile2\n";
-    system("sqlite3 $dbfile < reduced_db.sql");
-    system("mv temp_reduced.db $dbfile2");
-
     print "Done!\n\n";
 }
 

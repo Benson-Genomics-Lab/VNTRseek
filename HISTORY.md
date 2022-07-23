@@ -21,10 +21,19 @@
 - reduced stdout spam in steps 3, 5, 10, 14, 15, 16
   - and in c scripts: `redund2.c`, `joinc.c`, `flankalign.c`
 - rewired `map_dup.pl` and `run_flankcomp.pl` to free up `STDOUT`
-- changed `STDERR`s to `STDOUT`
+- restructured `run_trf_ng.pl` to match other subscripts
+  - argument passing, output
+- changed `STDERR`s to `STDOUT` where appropriate
+  - warns, timestamps
 - fixed VNTR vcf output skipping first entry
 - determined new redund has affected fasta_reads table
 - added output database minimization to cleanup
+- removed unused arguments in subscript calls
+  - notably insert_reads.pl
+- added output preclearing to all steps
+- moved final output to top level
+- removed many redundant output checks after `vs_db_insert` calls
+- removed `SERVER` symlinking
 - removed obselete scripts
 - cleaned out obselescent commented code
 - updated help files

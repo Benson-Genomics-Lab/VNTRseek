@@ -21,8 +21,8 @@ use warnings;
 use autodie;
 use Try::Tiny;
 use Carp;
-use Exporter qw(import);
-use POSIX qw(ceil);
+use Exporter "import";
+use POSIX "ceil";
 
 # use IO::Async::Function;
 # use IO::Async::Stream;
@@ -166,12 +166,12 @@ sub _init_input_list {
     # If BAM, init files list
     if ( $input_format eq "bam" ) {
         @filenames = $self->init_bam( files => \@filenames );
-        warn "BAM input. Will need to process "
+        print "BAM input. Will need to process "
             . scalar(@filenames)
             . " sets of reads from file.\n";
     }
     else {
-        warn scalar(@filenames)
+        print scalar(@filenames)
             . " supported files ($input_format format, $compression_msg) found in $self->{input_dir}\n";
     }
 
@@ -243,13 +243,7 @@ sub get_reads {
 
             # Trim tags, if needed, and prepare reverse complement
             if ( $self->{strip_454_TCAG} && ( $seq !~ s/^TCAG//i ) ) {
-                if ( $self->{warn_454_TCAG} ) {
-                    warn
-                        "Read does not start with keyseq TCAG. Full sequence: $seq\n";
-                }
-
-                die
-                    "Read does not start with keyseq TCAG. Full sequence: $seq\n";
+                die "Read $header does not start with keyseq TCAG. Full sequence: $seq\n";
             }
 
             $read_hash{$header} = $seq;
@@ -488,7 +482,8 @@ sub read_fastaq {
     # Since we are using seqtk, use pipe open mode
     my $openmode = "-|";
 
-    warn "Processing file " . $args{input} . "\n";
+    # this will be a problem given many input fastas
+    print "Processing file " . $args{input} . "\n";
     my $filename = '"' . $args{input} . '"';
 
     if ( $args{decom} ) {

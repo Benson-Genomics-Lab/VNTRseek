@@ -12,17 +12,17 @@
 use strict;
 use warnings;
 use Cwd;
-use POSIX qw(strftime);
+use POSIX "strftime";
 
-warn strftime( "Start: %F %T\n\n", localtime );
+print strftime( "Start: %F %T\n\n", localtime );
 
 die "Useage: run_proclu.pl expects 8 arguments.\n"
     unless scalar @ARGV >= 8;
 
 my $curdir           = getcwd();
 my $files_to_process = $ARGV[0]; # number of files to process in one batch
-my $tgz_dir          = $ARGV[1];
-my $reffolder        = $ARGV[2];
+my $tgz_dir          = $ARGV[1]; # input folder
+my $reffolder        = $ARGV[2]; # folder with reference.leb36 and ".rotindex
 my $params_in        = $ARGV[3];
 my $cpucount         = $ARGV[4];
 my $PROCLU           = "$curdir/$ARGV[5]";
@@ -32,7 +32,7 @@ my $maxflanconsid    = $ARGV[7];
 # with dust filter (would be somewhat faster but less results)
 #my $PROCLU_PARAM = "$curdir/eucledian.dst $curdir/eucledian.dst $params_in -p \"(0.70,0.30)\" -d -s $reffolder/reference.leb36";
 
-# with PAM (doesnt take flanks into account) 
+# with PAM (doesnt take flanks into account)
 #my $PROCLU_PARAM = "$curdir/eucledian.dst $curdir/eucledian.dst $params_in -p \"(0.70,0.30)\" -s $reffolder/reference.leb36";
 
 # basic
@@ -43,8 +43,7 @@ my $PROCLU_PARAM_END   = "$curdir/eucledian.dst $params_in";
 my $files_processed = 0;	# files processed
 my %p; # associates forked pids with output pipe pids
 
-my $MYLOCK=0;  # KA: meaningless, there is no shared memory in perl
-
+# KA: We love grepping hundreds of files huh?
 # get a list of input files
 opendir(DIR, $tgz_dir);
 # the only extensions are .leb36
@@ -80,7 +79,7 @@ while ((my $pid = wait) != -1) {
         exit ($rc);
     }
 
-    # KA: not sure why we're checking this
+    # KA: not sure why we're checking for unrelated process signals
     die "Unrelated process $pid finished?\n" unless $p{$pid};
 
     # one instance has finished processing -- start a new one
@@ -89,7 +88,7 @@ while ((my $pid = wait) != -1) {
 }
 
 print "Processing complete -- processed $files_processed file(s).\n";
-warn strftime( "\nEnd: %F %T\n\n", localtime );
+print strftime( "\nEnd: %F %T\n\n", localtime );
 
 1;
 
@@ -101,13 +100,6 @@ sub fork_proclu {
             return 0;
     }
 
-    # this is meaningless, lock will just be memory duplicated
-    # wait for shared variables to unlock
-    while ($MYLOCK) { }
-
-    # lock shared vars - no such thing
-    $MYLOCK = 1;
-
     # use a predefined number of files
     my $until = $files_processed + $files_to_process - 1;
     $until = $tarball_count - 1 if $until > ($tarball_count - 1);
@@ -116,8 +108,6 @@ sub fork_proclu {
     $files_processed += $file_slice_count;
     my $proclu_string;
 
-    # unlock shared vars - still no such thing
-    $MYLOCK = 0;
 
     defined(my $pid = fork)
         or die "Unable to fork: $!\n";

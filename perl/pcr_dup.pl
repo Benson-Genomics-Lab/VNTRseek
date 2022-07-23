@@ -16,20 +16,19 @@ use vutil
     qw(get_config get_dbh set_statistics gen_exec_array_cb);
 
 
-warn strftime( "Start: %F %T\n\n", localtime );
+print strftime( "Start: %F %T\n\n", localtime );
 
 my $argc = @ARGV;
-die "Usage: pcr_dup.pl expects 7 arguments.\n"
-    unless $argc >= 7;
+die "Usage: pcr_dup.pl expects 6 arguments.\n"
+    unless $argc >= 6;
 
 my $curdir       = getcwd();
 my $indexfolder  = $ARGV[0];
-my $pcleanfolder = $ARGV[1];
+my $out_folder   = $ARGV[1];
 my $DBSUFFIX     = $ARGV[2];
 my $cnf          = $ARGV[3];
 my $cpucount     = $ARGV[4];
-my $TEMPDIR      = $ARGV[5];
-my $KEEPPCRDUPS  = $ARGV[6];
+my $KEEPPCRDUPS  = $ARGV[5];
 
 my %run_conf = get_config("CONFIG", $cnf);
 my $dbh = get_dbh()
@@ -40,8 +39,6 @@ my $RECORDS_PER_INFILE_INSERT = 100000;
 my $files_to_process = 100;    # number of files to process in one batch
 my $files_processed  = 0;      # files processed
 my %p;                         # associates forked pids with output pipe pids
-
-my $MYLOCK = 0;
 
 # process
 print "Reading: $indexfolder\n";
@@ -118,6 +115,7 @@ foreach my $ifile (@indexfiles) {
 
     $i++;
 
+    # KA: we already know this regex will match, no need for the if
     if ( $ifile =~ /(\d+)\.seq\.pcr_dup/ ) {
 
         my $ref         = $1;
@@ -165,12 +163,7 @@ foreach my $ifile (@indexfiles) {
                             my $cb = gen_exec_array_cb( \@to_delete );
                             my $rows = vs_db_insert( $dbh, $sth, $cb,
                                 "Error when inserting entries into temporary pcr duplicates table.\n");
-                            if ($rows) {
-                                @to_delete = ();
-                            }
-                            else {
-                                die "Something went wrong inserting, but somehow wasn't caught!\n";
-                            }
+                            @to_delete = ();
                         }
                         $PENTRIES{ $ref . "_" . $read } = 1;
                     }
@@ -186,12 +179,7 @@ if (@to_delete) {
     my $cb = gen_exec_array_cb( \@to_delete );
     my $rows = vs_db_insert( $dbh, $sth, $cb,
         "Error when inserting entries into temporary pcr duplicates table.\n");
-    if ($rows) {
-        @to_delete = ();
-    }
-    else {
-        die "Something went wrong inserting, but somehow wasn't caught!\n";
-    }
+    @to_delete = ();
 }
 
 # delete from rankdflank based on temptable entries
@@ -213,7 +201,7 @@ print "Processing complete (pcr_dup.pl), deleted $deleted duplicates.\n";
 
 # for accounting of pcr dups
 print "Making a list of pcr_dup removed.\n";
-if ( open( my $fh, ">$pcleanfolder/result/$DBSUFFIX.pcr_dup.txt" ) ) {
+if ( open( my $fh, ">$out_folder/$DBSUFFIX.pcr_dup.txt" ) ) {
     $i = 0;
     for my $key ( sort keys %PENTRIES ) {
         $i++;
@@ -271,7 +259,7 @@ $stats{BBB_WITH_MAP_DUPS} = $i;
 
 # make a list of ties
 print "Making a list of ties (references)...\n";
-if ( open( my $fh, ">$pcleanfolder/result/$DBSUFFIX.ties.txt" ) ) {
+if ( open( my $fh, ">$out_folder/$DBSUFFIX.ties.txt" ) ) {
     my $read_dbh = get_dbh( { userefdb => 1, readonly => 1 } );
     $query = qq{SELECT map.refid, max(bbb) as mbb,
             (select head from refdb.fasta_ref_reps where rid=map.refid) as chr,
@@ -296,7 +284,7 @@ print "Ties list complete with $i removed references.\n";
 
 # make a list of ties
 print "\nMaking a list of ties (entries)...\n";
-if ( open( my $fh, ">$pcleanfolder/result/$DBSUFFIX.ties_entries.txt" ) ) {
+if ( open( my $fh, ">$out_folder/$DBSUFFIX.ties_entries.txt" ) ) {
 
     $query = q{SELECT map.refid, map.readid,rank.ties,rankflank.ties
     FROM map
@@ -329,8 +317,8 @@ if ( $delfromtable != $deleted ) {
 }
 
 $dbh->disconnect();
-warn strftime( "\nEnd: %F %T\n\n", localtime );
 set_statistics( \%stats );
+print strftime( "\nEnd: %F %T\n\n", localtime );
 
 1;
 
@@ -341,12 +329,6 @@ sub fork_pcrdup {
         return 0;
     }
 
-    # wait for shared variables to unlock
-    while ($MYLOCK) { }
-
-    # lock shared vars
-    $MYLOCK = 1;
-
     # use a predefined number of files
     my $until = $files_processed + $files_to_process - 1;
     $until = $tarball_count - 1 if $until > ( $tarball_count - 1 );
@@ -356,9 +338,6 @@ sub fork_pcrdup {
     my $file_slice_count = @file_slice;
     $files_processed += $file_slice_count;
     my $exstring;
-
-    # unlock shared vars
-    $MYLOCK = 0;
 
     defined( my $pid = fork )
         or die "Unable to fork: $!\n";
@@ -382,4 +361,3 @@ sub fork_pcrdup {
 
     return 0;
 }
-

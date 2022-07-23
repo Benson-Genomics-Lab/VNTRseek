@@ -1,14 +1,14 @@
 #!/usr/bin/env perl
 
 # command line usage example:
-#  ./checkl3b36.pl inputfolder
+#  ./checkleb36.pl inputfolder
 
 use strict;
 use warnings;
 use Cwd;
 use POSIX "strftime";
 
-warn strftime( "Start: %F %T\n\n", localtime );
+print strftime( "Start: %F %T\n\n", localtime );
 
 die "Useage: checkl3b36.pl expects 1 argument.\n"
     unless @ARGV;
@@ -16,7 +16,7 @@ die "Useage: checkl3b36.pl expects 1 argument.\n"
 my $curdir =  getcwd();
 my $tgz_dir = $ARGV[0];
 
-# This is a bad way of doing this.
+# KA: Bad file grep for list.
 # get a list of input files
 opendir(DIR, $tgz_dir);
 # the only extensions are .leb36
@@ -32,15 +32,19 @@ chdir($tgz_dir);
 
 print "Checking read leb36 files...\n";
 my %uhash = ();
+my $fh;
 foreach my $ifile (@tarballs) {
-  open FILE, "<$ifile" or die $!;
-  while (<FILE>) {
-    if (/^(\d+)/) {
-        if (exists $uhash{$1}) { die "Non-unique id ($1) detected in reads. Were steps 2 and 3 executed?\n"; }
-        $uhash{$1} = 1;
+    open($fh, "<$ifile") or die $!;
+    while (<$fh>) {
+        if (/^(\d+)/) {
+            if (exists $uhash{$1}) {
+                die "Non-unique id ($1) detected in reads."
+                    . " Were steps 2 and 3 executed?\n";
+            }
+            $uhash{$1} = 1;
+        }
     }
-  }
-  close FILE;
+    close $fh;
 }
 
-warn strftime( "\nEnd: %F %T\n\n", localtime );
+print strftime( "\nEnd: %F %T\n\n", localtime );

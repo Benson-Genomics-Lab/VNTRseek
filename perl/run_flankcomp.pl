@@ -23,18 +23,17 @@ sub nowhitespace($) {
     return $string;
 }
 
-warn strftime( "Start: %F %T\n\n", localtime );
+print strftime( "Start: %F %T\n\n", localtime );
 
 my $argc = @ARGV;
-die "Usage: run_flankcomp.pl expects 5 arguments.\n"
-    unless $argc >= 5;
+die "Usage: run_flankcomp.pl expects 4 arguments.\n"
+    unless $argc >= 4;
 
 my $curdir    = getcwd();
 my $inputfile = $ARGV[0];
-my $DBSUFFIX  = $ARGV[1];
-my $cnf       = $ARGV[2];
-my $TEMPDIR   = $ARGV[3];
-my $outfile   = $ARGV[4];
+my $cnf       = $ARGV[1];
+my $TEMPDIR   = $ARGV[2];
+my $outfile   = $ARGV[3];
 
 # get run config
 my %run_conf = get_config("CONFIG", $cnf);
@@ -165,10 +164,7 @@ while (<$fh>) {
     $clusters_processed++;
 
     chomp;
-
     my @values = split( ',', $_ );
-
-    # warn "Line: " . join ":", @values;
 
     my $repeatcount = 0;
     my $refcount    = 0;
@@ -180,25 +176,17 @@ while (<$fh>) {
     # process each line
     # for statistics
     foreach my $val (@values) {
-
         $val =~ s/[\'\"]//g;
 
         # insert clusterlnk entry
         if ( $val <= 0 ) {
-
             $refcount++;
-
             $totalRefReps++;
-
         }
         else {
-
             $readcount++;
-
             $totalReadReps++;
-
         }
-
         $repeatcount++;
     }
 
@@ -209,7 +197,7 @@ while (<$fh>) {
         or die "Couldn't execute statement: " . $sth1->errstr;
 
     # store refs for later use
-    open( my $RFILE, ">$TEMPDIR/refs_$DBSUFFIX.txt" ) or die $!;
+    open( my $RFILE, ">$TEMPDIR/refs.txt" ) or die $!;
     while ( my @data = $sth->fetchrow_array() ) {
         print $RFILE "-"
             . $data[0]
@@ -240,7 +228,7 @@ while (<$fh>) {
                 "\n**********************************************************************\n";
 
             # print refs each time
-            open( my $RFILE, "<$TEMPDIR/refs_$DBSUFFIX.txt" ) or die $!;
+            open( my $RFILE, "<$TEMPDIR/refs.txt" ) or die $!;
             while (<$RFILE>) { print $outfh $_; }
             close($RFILE);
         }
@@ -259,15 +247,11 @@ while (<$fh>) {
     }
     close($outfh);
 
-    # do for 1st 10 clusters for now
-    #if ($clusters_processed >= 20) { last; }
-
     # insert database records (cluster table)
     if ( $ENV{DEBUG} ) {
         my $numrefs  = $sth->rows;
         my $numreads = $sth1->rows;
-        warn
-            "Cluster $clusters_processed, numrefs: $numrefs, numreads: $numreads\n";
+        warn "Cluster $clusters_processed, numrefs: $numrefs, numreads: $numreads\n";
     }
     push @clusters,
         [ $clusters_processed, $minpat, $maxpat, $repeatcount, $refcount ];
@@ -278,14 +262,8 @@ while (<$fh>) {
     if ( ( @clusters % $RECORDS_PER_INFILE_INSERT == 0 ) ) {
         my $cb   = gen_exec_array_cb( \@clusters );
         my $rows = vs_db_insert( $write_dbh, $sth2, $cb,
-            "Error when inserting entries into our clusters table.\n" );
-        if ($rows) {
-            @clusters = ();
-        }
-        else {
-            die
-                "Something went wrong inserting, but somehow wasn't caught!\n";
-        }
+            "Error when inserting entries into clusters table.\n" );
+        @clusters = ();
     }
 
     # $dbh->commit;
@@ -301,13 +279,8 @@ while (<$fh>) {
 if (@clusters) {
     my $cb   = gen_exec_array_cb( \@clusters );
     my $rows = vs_db_insert( $write_dbh, $sth2, $cb,
-        "Error when inserting entries into our clusters table.\n" );
-    if ($rows) {
-        @clusters = ();
-    }
-    else {
-        die "Something went wrong inserting, but somehow wasn't caught!\n";
-    }
+        "Error when inserting entries into clusters table.\n" );
+    @clusters = ();
 }
 
 # enable old settings
@@ -318,16 +291,15 @@ $write_dbh->disconnect();
 $read_dbh->disconnect();
 
 # update the stats table
-my %stats = (
+set_statistics({
     CLUST_LARGEST_NUMBER_OF_TRS_IN_PROCLU_CLUSTER  => $mostReps,
     CLUST_LARGEST_NUMBER_OF_REFS_IN_PROCLU_CLUSTER => $mostRefReps,
     CLUST_LARGEST_PATRANGE_IN_PROCLU_CLUSTER       => $maxRange,
     CLUST_NUMBER_OF_PROCLU_CLUSTERS                => $clusters_processed,
     CLUST_NUMBER_OF_REF_REPS_IN_CLUSTERS           => $totalRefReps,
     CLUST_NUMBER_OF_READ_REPS_IN_CLUSTERS          => $totalReadReps,
-);
-set_statistics( \%stats );
+});
 
 print "Processing complete -- processed $clusters_processed cluster(s).";
-warn strftime( "\nEnd: %F %T\n\n", localtime );
+print strftime( "\nEnd: %F %T\n\n", localtime );
 

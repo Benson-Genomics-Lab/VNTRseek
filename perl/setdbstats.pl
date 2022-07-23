@@ -125,5 +125,3 @@ if ( !ref $num_tr_stats || grep { !defined $_ || $_ == 0 }
 
 # Get config for run and save stats
 set_statistics( \%stats );
-
-1;

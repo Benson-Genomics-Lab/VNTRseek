@@ -1,46 +1,37 @@
 #!/usr/bin/env perl
 
-my $RECORDS_PER_INFILE_INSERT = 100000;
-
-use List::Util qw[min max];
-
 use strict;
 use warnings;
 use Cwd;
 use DBI;
-use POSIX qw(strftime);
-use FindBin;
+use POSIX "strftime";
 use File::Basename;
 use Try::Tiny;
+use List::Util qw[min max];
 
+use FindBin;
 use lib "$FindBin::RealBin/lib";
-
 use vutil
     qw(get_config get_dbh set_statistics gen_exec_array_cb vs_db_insert);
 
+print strftime( "Start: %F %T\n\n", localtime );
 
-sub nowhitespace($) {
-    my $string = shift;
-    $string =~ s/\s+//g;
-    return $string;
-}
-
-warn strftime( "Start: %F %T\n\n", localtime );
-
+# Arguments
 my $argc = @ARGV;
-die "Usage: run_rankflankmap.pl expects 4 arguments.\n"
-    unless $argc >= 4;
+die "Usage: run_rankflankmap.pl expects 3 arguments.\n"
+    unless $argc >= 3;
 
 my $curdir    = getcwd();
 my $inputfile = $ARGV[0];
 my $mapdir    = $ARGV[1];
-my $tmp       = $ARGV[2];
-my $cnf       = $ARGV[3];
+my $cnf       = $ARGV[2];
 
+# Database connection and variables
 my %run_conf = get_config("CONFIG", $cnf);
 my $dbh = get_dbh()
     or die "Could not connect to database: $DBI::errstr";
 
+my $RECORDS_PER_INFILE_INSERT = 100000;
 my $clusters_processed   = 0;
 my $updatedClustersCount = 0;
 my $updatedRefsCount     = 0;
@@ -126,7 +117,7 @@ foreach my $file (@allfiles) {
                                 ( $2 + $3 ) / ( $mfields[2] + $mfields[3] ) );
                         }
 
-               # filter to remove all flank scores below .9, added Nov 5, 2012
+                        # filter to remove all flank scores below .9, added Nov 5, 2012
                         if ( $score >= 0.90 ) {
 
                             if ( $score > $bestscore ) {
@@ -143,16 +134,10 @@ foreach my $file (@allfiles) {
                         push @map_rows, [ $1, $readid ];
                         if ( @map_rows % $RECORDS_PER_INFILE_INSERT == 0 ) {
                             my $cb = gen_exec_array_cb( \@map_rows );
-                            my $rows
-                                = vs_db_insert( $dbh, $map_insert_sth, $cb,
+                            my $rows = vs_db_insert( $dbh, $map_insert_sth, $cb,
                                 "Error inserting into map table." );
-                            if ($rows) {
-                                $uploadedmap += $rows;
-                                @map_rows = ();
-                            }
-                            else {
-                                die "Something went wrong inserting, but somehow wasn't caught!\n";
-                            }
+                            $uploadedmap += $rows;
+                            @map_rows = ();
                         }
                     }
                 }
@@ -167,24 +152,15 @@ foreach my $file (@allfiles) {
 
                         push @rankflank_rows,
                             [ $rstr, $readid, $bestscore, $ties ];
-                        if ( @rankflank_rows % $RECORDS_PER_INFILE_INSERT
-                            == 0 )
-                        {
+                        if ( @rankflank_rows % $RECORDS_PER_INFILE_INSERT == 0 ) {
                             my $cb = gen_exec_array_cb( \@rankflank_rows );
                             my $rows
                                 = vs_db_insert( $dbh, $rankflank_insert_sth,
                                 $cb,
                                 "Error inserting into rankflank table." );
-                            if ($rows) {
-                                $uploadedrank += $rows;
-                                @rankflank_rows = ();
-                            }
-                            else {
-                                die
-                                    "Something went wrong inserting, but somehow wasn't caught!\n";
-                            }
+                            $uploadedrank += $rows;
+                            @rankflank_rows = ();
                         }
-
                     }
                 }
             }
@@ -199,13 +175,8 @@ if (@map_rows) {
     my $cb   = gen_exec_array_cb( \@map_rows );
     my $rows = vs_db_insert( $dbh, $map_insert_sth, $cb,
         "Error inserting into map table." );
-    if ($rows) {
-        $uploadedmap += $rows;
-        @map_rows = ();
-    }
-    else {
-        die "Something went wrong inserting, but somehow wasn't caught!\n";
-    }
+    $uploadedmap += $rows;
+    @map_rows = ();
 }
 
 if ( $uploadedmap != $k ) {
@@ -217,13 +188,8 @@ if (@rankflank_rows) {
     my $cb   = gen_exec_array_cb( \@rankflank_rows );
     my $rows = vs_db_insert( $dbh, $rankflank_insert_sth, $cb,
         "Error inserting into rankflank table." );
-    if ($rows) {
-        $uploadedrank += $rows;
-        @rankflank_rows = ();
-    }
-    else {
-        die "Something went wrong inserting, but somehow wasn't caught!\n";
-    }
+    $uploadedrank += $rows;
+    @rankflank_rows = ();
 }
 
 if ( $uploadedrank != $j ) {
@@ -265,14 +231,8 @@ while ( my @data = $sth->fetchrow_array() ) {
             my $cb  = gen_exec_array_cb( \@rows );
             my $num = vs_db_insert( $dbh, $sth1, $cb,
                 "Error inserting into temporary rank table." );
-            if ($num) {
-                $count += $num;
-                @rows = ();
-            }
-            else {
-                die
-                    "Something went wrong inserting, but somehow wasn't caught!\n";
-            }
+            $count += $num;
+            @rows = ();
         }
     }
     $oldref   = $data[0];
@@ -286,13 +246,8 @@ if (@rows) {
     my $cb  = gen_exec_array_cb( \@rows );
     my $num = vs_db_insert( $dbh, $sth1, $cb,
         "Error inserting into temporary rank table." );
-    if ($num) {
-        $count += $num;
-        @rows = ();
-    }
-    else {
-        die "Something went wrong inserting, but somehow wasn't caught!\n";
-    }
+    $count += $num;
+    @rows = ();
 }
 
 print "Prunning complete. Pruned $count rankflank records.\n";
@@ -320,13 +275,8 @@ while ( my @data = $sth->fetchrow_array() ) {
             my $cb  = gen_exec_array_cb( \@rows );
             my $num = vs_db_insert( $dbh, $sth1, $cb,
                 "Error inserting into temporary rank table." );
-            if ($num) {
-                $count += $num;
-                @rows = ();
-            }
-            else {
-                die "Something went wrong inserting, but somehow wasn't caught!\n";
-            }
+            $count += $num;
+            @rows = ();
         }
     }
     $oldref  = $data[0];
@@ -339,13 +289,8 @@ if (@rows) {
     my $cb  = gen_exec_array_cb( \@rows );
     my $num = vs_db_insert( $dbh, $sth1, $cb,
         "Error inserting into temporary rank table." );
-    if ($num) {
-        $count += $num;
-        @rows = ();
-    }
-    else {
-        die "Something went wrong inserting, but somehow wasn't caught!\n";
-    }
+    $count += $num;
+    @rows = ();
 }
 
 print "Prunning complete. Pruned $count rankflank records.\n";
@@ -385,6 +330,12 @@ set_statistics(
 print "Processing complete -- processed $clusters_processed cluster(s)."
     . "\n  Deleted from rankflank using temptable: $delfromtable\n";
 
-warn strftime( "\nEnd: %F %T\n\n", localtime );
+print strftime( "\nEnd: %F %T\n\n", localtime );
 
 1;
+
+sub nowhitespace($) {
+    my $string = shift;
+    $string =~ s/\s+//g;
+    return $string;
+}

@@ -3,41 +3,36 @@
 # removes *reads* that are mapped to multiple references (due to multiple TRs). Picks the best TR by profile, when same, picks best by flank. When same, removes both.
 # !!!  makes an exception if references are on same chromosome and close together
 
-my $RECORDS_PER_INFILE_INSERT = 100000;
-
 use strict;
 use warnings;
 use Cwd;
 use DBI;
 use List::Util qw[min max];
 use POSIX "strftime";
-
-use FindBin;
 use File::Basename;
-
+use FindBin;
 use lib "$FindBin::RealBin/lib";
 use vutil qw(get_config get_dbh gen_exec_array_cb vs_db_insert set_statistics);
 
-warn strftime( "Start: %F %T\n\n", localtime );
+print strftime( "Start: %F %T\n\n", localtime );
 
+# Arguments
 my $argc = @ARGV;
-die "Usage: map_dup.pl expects 3 arguments.\n"
-    unless $argc >= 3;
+die "Usage: map_dup.pl expects 2 arguments.\n"
+    unless $argc >= 2;
 
-# TODO Better default or calculate in advance
-my $maxRepeatsPerRead = 2;
-
-my $curdir   = getcwd;
+my $curdir   = getcwd();
 my $cnf      = $ARGV[0];
-my $TEMPDIR  = $ARGV[1];
-my $outfile  = $ARGV[2];
+my $outfile  = $ARGV[1];
 
 my %run_conf = get_config("CONFIG", $cnf);
 my $dbh = get_dbh()
     or die "Could not connect to database: $DBI::errstr";
 
-#my $sth3 = $dbh->prepare("UPDATE map SET bbb=0 WHERE refid=? AND readid=?;")
-#                or die "Couldn't prepare statement: " . $dbh->errstr;
+# TODO Better default or calculate in advance
+my $maxRepeatsPerRead = 2;
+
+my $RECORDS_PER_INFILE_INSERT = 100000;
 
 # create temp table for updates
 my $query = q{CREATE TEMPORARY TABLE mduptemp (
@@ -101,7 +96,7 @@ my $insert_mduptemp_sth = $dbh->prepare(q{INSERT INTO mduptemp VALUES(?, ?)});
 
 my $i = 0;
 my @mdup = ();
-open (my $outfh, ">$outfile")
+open (my $outfh, ">$outfile");
 while ( my @data = $readsWithMultTRsMappedMultRefs_sth->fetchrow_array() ) {
 
     # TODO Use read length to calculate $maxRepeatsPerRead
@@ -183,12 +178,7 @@ while ( my @data = $readsWithMultTRsMappedMultRefs_sth->fetchrow_array() ) {
             my $cb   = gen_exec_array_cb( \@mdup );
             my $rows = vs_db_insert( $dbh, $insert_mduptemp_sth, $cb,
                 "Error when inserting entries into mduptemp table.\n" );
-            if ($rows) {
-                @mdup = ();
-            }
-            else {
-                die "Something went wrong inserting, but somehow wasn't caught!\n";
-            }
+            @mdup = ();
         }
 
         $oldrefhead = $data2[5];
@@ -207,17 +197,11 @@ while ( my @data = $readsWithMultTRsMappedMultRefs_sth->fetchrow_array() ) {
 # my $numReadsWithMultTRsMappedMultRefs
 #     = $readsWithMultTRsMappedMultRefs_sth->rows;
 
-# $sth3->finish();
 if ( @mdup ) {
     my $cb   = gen_exec_array_cb( \@mdup );
     my $rows = vs_db_insert( $dbh, $insert_mduptemp_sth, $cb,
         "Error when inserting entries into mduptemp table.\n" );
-    if ($rows) {
-        @mdup = ();
-    }
-    else {
-        die "Something went wrong inserting, but somehow wasn't caught!\n";
-    }
+    @mdup = ();
 }
 
 
@@ -243,12 +227,8 @@ if ( $updfromtable != $deleted ) {
 $dbh->do(q{UPDATE stats SET BBB=(SELECT count(*) FROM map WHERE bbb=1)})
     or die "Couldn't do statement: " . $dbh->errstr;
 
-$dbh->disconnect();
-
 printf $outfh "%d entries deleted!\n", $deleted;
 printf $outfh "%d reads deleted!\n",   $ReadsDeleted;
 
-warn strftime( "\nEnd: %F %T\n\n", localtime );
-
-1;
-
+$dbh->disconnect();
+print strftime( "\nEnd: %F %T\n\n", localtime );
