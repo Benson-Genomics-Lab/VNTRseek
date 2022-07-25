@@ -15,6 +15,12 @@ if ( $ENV{DEBUG} ) {
     use Data::Dumper;
 }
 
+sub nowhitespace($) {
+    my $string = shift;
+    $string =~ s/\s+//g;
+    return $string;
+}
+
 print strftime( "Start: %F %T\n\n", localtime );
 
 # Arguments
@@ -526,8 +532,4 @@ sub VNTR_YES_NO {
     return $varyes;
 }    # end of func
 
-sub nowhitespace($) {
-    my $string = shift;
-    $string =~ s/\s+//g;
-    return $string;
-}
+

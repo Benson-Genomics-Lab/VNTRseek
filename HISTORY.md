@@ -16,6 +16,7 @@
 - sorted parameter handling sections
 - cleaned `print_config` and usage
 - added `GEN_CONFIG` option
+- revised start and end step argument parsing
 - fixed subscript config loading and unified preambles
 - reduced stderr spam in steps 1, 4, 8, 15, 17
 - reduced stdout spam in steps 3, 5, 10, 14, 15, 16
@@ -26,7 +27,7 @@
 - changed `STDERR`s to `STDOUT` where appropriate
   - warns, timestamps
 - fixed VNTR vcf output skipping first entry
-- determined new redund has affected fasta_reads table
+- (Dr. Benson) fixed redund bug mishandling profiles
 - added output database minimization to cleanup
 - removed unused arguments in subscript calls
   - notably insert_reads.pl

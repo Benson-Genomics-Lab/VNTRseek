@@ -258,7 +258,7 @@ $dbh->commit();
 $stats{BBB_WITH_MAP_DUPS} = $i;
 
 # make a list of ties
-print "Making a list of ties (references)...\n";
+print "Making a list of ties (references).\n";
 if ( open( my $fh, ">$out_folder/$DBSUFFIX.ties.txt" ) ) {
     my $read_dbh = get_dbh( { userefdb => 1, readonly => 1 } );
     $query = qq{SELECT map.refid, max(bbb) as mbb,
@@ -283,7 +283,7 @@ if ( open( my $fh, ">$out_folder/$DBSUFFIX.ties.txt" ) ) {
 print "Ties list complete with $i removed references.\n";
 
 # make a list of ties
-print "\nMaking a list of ties (entries)...\n";
+print "Making a list of ties (entries).\n";
 if ( open( my $fh, ">$out_folder/$DBSUFFIX.ties_entries.txt" ) ) {
 
     $query = q{SELECT map.refid, map.readid,rank.ties,rankflank.ties

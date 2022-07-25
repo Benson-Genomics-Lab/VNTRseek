@@ -69,7 +69,7 @@ while (($clusterid, $repid) = $sth->fetchrow_array()) {
     $refmap{$clusterid} = $repid;
 }
 $sth->finish();
-print "Reference map loaded.\n\n";
+print "Reference map loaded.\n";
 
 
 # create map for generating edges files
@@ -89,7 +89,7 @@ while (($clusterid, $datum) = $sth->fetchrow_array()) {
     $edgemap{$clusterid} = $datum;
 }
 $sth->finish();
-print "Edge map loaded.\n\n";
+print "Edge map loaded.\n";
 
 
 # prep sample lebs pipe
@@ -105,7 +105,7 @@ $query = qq{
     GROUP BY clusterid};
 $sth = $dbh->prepare($query);
 $sth->execute();
-print "Sample leb data ready.\n\n";
+print "Sample leb data ready.\n";
 
 
 # move to working folder
@@ -145,14 +145,13 @@ while ((my $pid = wait) != -1) {
 }
 $sth->finish();
 $coconut++; # since we used 0 indexing
-print "Processing complete -- processed $clusters_processed cluster(s).\n"
-    . "  -- used $coconut chunks.\n";
-warn strftime("\nEnd proclu: %F %T\n\n", localtime);
+print "Processing complete -- processed $clusters_processed cluster(s).\n";
+print strftime("\nMid proclu: %F %T\n\n", localtime);
 chdir($curdir);
 
 
 # update clusters tables
-print "Updating clusters table...\n";
+print "Updating clusters table.\n";
 
 # make temp for clusters table
 $query = q{
@@ -218,7 +217,7 @@ print "Updated $updfromtable clusters from $pcdupd processed.\n";
 
 
 # populate rank table
-print "Populating rank table...\n";
+print "Populating rank table.\n";
 
 # prepare rank table
 $sth = $dbh->do("DELETE FROM rank")
@@ -261,7 +260,7 @@ my $sth2  = $dbh->prepare(q{INSERT INTO ranktemp VALUES(?, ?)});
 
 
 # prune reference ids with worse scores
-print "Prunning (keep best ref TR for each read TR) from rank table...\n";
+print "Prunning (keep best ref TR for each read TR) from rank table.\n";
 $query = q{
     SELECT refid, readid, sid, score
     FROM rank INNER JOIN
@@ -290,7 +289,7 @@ print "Prunning complete. Pruned $count rank records.\n";
 
 
 # prune duplicates?
-print "Prunning (one TR/same read) from rank table...\n";
+print "Prunning (one TR/same read) from rank table.\n";
 $query = q{
     SELECT refid, readid, sid, score
     FROM rank INNER JOIN
@@ -355,7 +354,7 @@ set_statistics({
     RANK_REMOVED_SAMESEQ  => $count
 });
 
-print "Finished. Deleted from rank using temptable: $delfromtable\n";
+print "Deleted from rank using temptable: $delfromtable\n";
 print strftime( "\nEnd: %F %T\n\n", localtime );
 
 1;

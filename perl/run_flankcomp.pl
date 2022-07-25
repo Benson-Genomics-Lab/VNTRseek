@@ -69,7 +69,7 @@ $write_dbh->do("PRAGMA synchronous = OFF");
 
 #############################################################################################
 
-print "Inserting into clusterlnk table...\n";
+print "Inserting into clusterlnk table.\n";
 
 open my $fh, "<$inputfile" or die $!;
 my $TEMPFILE;
@@ -135,7 +135,7 @@ if (@cluster_links) {
 $write_dbh->do("PRAGMA synchronous = FULL");
 $write_dbh->do("PRAGMA synchronous = OFF");
 
-print "Printing DNA and inserting into cluster table...\n";
+print "Printing DNA and inserting into cluster table.\n";
 
 # now print dna and quals (also insert into cluster table)
 $sth = $read_dbh->prepare(
@@ -218,7 +218,7 @@ while (<$fh>) {
     $i = 0;
     my $hcount = 0;
 
-    open( my $outfh, ">$outfile" ) or die $!;
+    open( my $outfh, ">>$outfile" ) or die $!;
     while ( my @data = $sth1->fetchrow_array() ) {
         if ( ( $i % $BREAK_SIZE ) == 0 ) {
             $hcount++;

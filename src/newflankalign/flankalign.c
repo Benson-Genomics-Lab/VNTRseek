@@ -769,7 +769,7 @@ int main( int argc, char *argv[] ) {
             EasyListDestroy( ref_list );
             EasyListDestroy( read_list );
 
-            /* if full batch scheled, wait for one to finishe and schedule
+            /* if full batch scheduled, wait for one to finish and schedule
              * another */
             if ( ThreadCounter >= MAXTHREADS ) {
 
@@ -809,15 +809,14 @@ int main( int argc, char *argv[] ) {
         if ( -1 == retid )
             doCriticalErrorAndQuit(
               "\n\nFlankAlign - wait function returned -1. Aborting!" );
-        else
-            printf( "\tterminated: %d\n", retid );
+        //else
+        //    printf( "\tterminated: %d\n", retid );
     }
     ThreadCounter = 0;
 
     /* done */
     fclose( rd_fp );
-    printf( "\ndone!!! processed: %lld, ThreadCounter: %d\n", processed,
-      ThreadCounter );
+    printf( "Processed: %lld\n", processed);
 
     return 0;
 }

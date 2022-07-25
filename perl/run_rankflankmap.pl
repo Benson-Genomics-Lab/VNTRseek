@@ -207,7 +207,7 @@ $dbh->do(
 ) or die "Couldn't do statement: " . $dbh->errstr;
 
 $sth1 = $dbh->prepare(qq{INSERT INTO ranktemp VALUES (?, ?)});
-print "Prunning (keep best ref for each read) from rankflank table...\n";
+print "Prunning (keep best ref for each read) from rankflank table.\n";
 my $query = qq{
     SELECT refid, readid, sid, score
     FROM rankflank INNER JOIN replnk ON rankflank.readid=replnk.rid

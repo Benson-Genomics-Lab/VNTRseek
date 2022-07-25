@@ -96,9 +96,9 @@ install(CODE "
     endif(EXISTS \"${CMAKE_INSTALL_PREFIX}/${InstallSuffix}/defaults.vs.cnf\")
 ")
 SET(MISC_FILES
-    HISTORY
-    COPYING CLUSTER
-    README.md RUNNING
+    HISTORY.md
+    COPYING
+    README.md RUNNING.md
     reduced_db.sql
     sqlite_schema.sql
     cpanfile

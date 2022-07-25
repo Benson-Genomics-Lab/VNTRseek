@@ -335,19 +335,13 @@ sub GetNextStep {
 
 ####################################
 
-# set to 0 to do one step at a time (recommended for test run), 1 to run though all steps
-#(THIS IS OTIONAL AS SPECIFYING END STEP IS POSSIBLE)
-my $DOALLSTEPS = 0;
 my $STEP = shift;
-my $STEPEND = -1;
-if (   (@ARGV)
-    && ( $ARGV[0] =~ /^\d+?$/ )
-    && $ARGV[0] >= 0
-    && $ARGV[0] <= 99 )
-{
-    $STEPEND = shift;
-    if ( $STEPEND > $STEP ) { $DOALLSTEPS = 1; }
-}
+die "Start step must be a positive integer.\n" unless ($STEP =~ /^\d+$/);
+my $STEPEND = @ARGV ? shift: -1;
+die "End step must be an integer.\n" unless ($STEPEND =~ /^-?\d+$/);
+
+die "Invalid steps given.\n" unless ($STEP == 100 or $STEPEND >= $STEP);
+my $DOALLSTEPS = ( $STEPEND > $STEP );
 
 # pipeline error checking
 
@@ -355,8 +349,8 @@ if ( $STEP != 0 ) {
 
     # clear error?
     if ( $STEP == 100 ) {
-        if ($STEPEND >= 0 && $STEPEND <= 19) { ClearError($STEPEND);}
-        else                                 { ClearError();}
+        if ( 0 <= $STEPEND && $STEPEND <= 19) { ClearError($STEPEND);}
+        else                                  { ClearError();}
 
         warn "Pipeline error cleared!\n";
         exit;
@@ -721,7 +715,7 @@ if ( $STEP == 6 ) {
 }
 
 if ( $STEP == 7 ) {
-    print "\nStep #$STEP is empty.\n\n";
+    print "Step #$STEP is empty.\n\n";
     $timestart = time();
 
     set_statistics( { TIME_DB_INSERT_REFS => time() - $timestart } );
@@ -786,7 +780,7 @@ if ( $STEP == 9 ) {
     my $tmpo = "$opts{TMPDIR}/vntr_$opts{DBSUFFIX}";
     die "Failed to create output directory $tmpo.\n"
         unless -r -w -e $tmpo or mkdir $tmpo;
-    unlink "$tmpo/ref.txt"
+    unlink "$tmpo/ref.txt";
     unlink "$read_profiles_folder_clean/allwithdups.flanks";
 
     system("./run_flankcomp.pl",
@@ -941,7 +935,7 @@ if ( $STEP == 14 ) {
 
     my $bestf = "$read_profiles_folder_clean/best";
     die "Failed to create output directory $bestf.\n"
-        unless -r -w -e $bestf or mkdir $betf;
+        unless -r -w -e $bestf or mkdir $bestf;
     unlink glob "$bestf/*.seq";
 
     system("./extra_index.pl", $bestf, $config_file);

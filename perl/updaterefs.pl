@@ -2196,5 +2196,3 @@ $dbh->disconnect();
 # Print VCF
 print "Producing VCFs.\n";
 print_vcf();
-
-print "Done!\n";

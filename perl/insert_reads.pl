@@ -76,7 +76,7 @@ print keys(%RHASH) . " positive entries inserted into hash."
     . ( time() - $timestart ) . " secs).\n";
 
 # clear  tables
-print "Truncating database tables\n";
+print "Truncating database tables.\n";
 $dbh->begin_work();
 $dbh->do("DELETE FROM replnk");
 $dbh->do("DELETE FROM fasta_reads");

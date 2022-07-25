@@ -319,7 +319,7 @@ int main( int argc, char **argv ) {
     // exit(1);
 
     /* write output and double CHECK for dups */
-    printf( "\n\nWriting final cluster file..." );
+    printf( "Writing final cluster file...\n" );
     DestroySingleHash( HASHSEEN );
     HASHSEEN = CreateSingleHash( 2 * totclusters );
 
@@ -390,7 +390,7 @@ int main( int argc, char **argv ) {
 
     fclose( fpo );
 
-    printf( "\nTotal clusters read: %d, after join: %d, total refs(written) %d "
+    printf( "Total clusters read: %d, after join: %d, total refs(written) %d "
             "(%d),  total reads(written) %d (%d) maxdepth=%d\n",
       totclusters, finclusters, TotalRefs, TotalRefsWritten, TotalReads,
       TotalReadsWritten, maxdepth );
