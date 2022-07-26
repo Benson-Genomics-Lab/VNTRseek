@@ -34,7 +34,7 @@
 //compile with:
 //gcc redund2.c easylife.c -lsqlite3 -o redund2
 //run with:
-//./redund2 /Users/gary/mac2008/programs/github/VNTRseek/src/redund2_code/data/ all.leb36 -i
+//'./redund2 /Users/gary/mac2008/programs/github/VNTRseek/src/redund2_code/data/ all.leb36 -i'
 
 //#define RECORDS_PER_FILE (5000)
 #define RECORDS_PER_FILE ( 100000 )
@@ -110,8 +110,8 @@ char *Complementascii = NULL;
 
 /*******************************************************************************************/
 typedef struct{
-	PROFILE *prof, *profrc;
-	int dir;
+    PROFILE *prof, *profrc;
+    int dir;
 } RECORD_STRUCT;
 
 typedef struct {
@@ -290,7 +290,7 @@ int *MinimumRepresentation( int *indptr, int len, int *indptrrc, int lenrc,
 //finds the minimum profile and profile length from the profile and reverse complement profile
 //when identical_only == 1, no profile rotations are performed
 //this is the case with the current VNTRseek
- 
+
     int  i, j;
     int *src, *srcrc, *tar,
       // *sourceptr,
@@ -380,138 +380,138 @@ int *MinimumRepresentation( int *indptr, int len, int *indptrrc, int lenrc,
 
 /*******************************************************************************************/
 //restores the heap after adding a new element to the top
-void siftDown(EASY_ARRAY *array, int start, int n)
-{
-	FITEM_STRUCT *temp, *fiptr1, *fiptr2;
-	int swap, i, j, test;
+void siftDown(EASY_ARRAY *array, int start, int n) {
+    FITEM_STRUCT *temp, *fiptr1, *fiptr2;
+    int swap, i, j, test;
 
-	swap = start;
-	i=2*start+1; //left child
-	while (i < n) {
-		//put smallest element on top
-		//test left child
-		fiptr1 = (FITEM_STRUCT *)EasyArrayItem(array,swap);
-    	fiptr2 = (FITEM_STRUCT *)EasyArrayItem(array,i);
+    swap = start;
+    i=2*start+1; //left child
+    while (i < n) {
+        //put smallest element on top
+        //test left child
+        fiptr1 = (FITEM_STRUCT *)EasyArrayItem(array,swap);
+        fiptr2 = (FITEM_STRUCT *)EasyArrayItem(array,i);
 
-		test = arsize_and_min_rep_cmp(fiptr2, fiptr1);
-		//printf("\nGot here in siftDown");
+        test = arsize_and_min_rep_cmp(fiptr2, fiptr1);
+        //printf("\nGot here in siftDown");
 
-		if (test < 0){
-			swap=i;
-			fiptr1 = fiptr2;
-		}
-		//test right child
-		j=i+1;
-		if (j < n){
-    		fiptr2 = (FITEM_STRUCT *)EasyArrayItem(array,j);
-			test = arsize_and_min_rep_cmp(fiptr2, fiptr1);
-		 	if(test < 0) {
-		 		swap = j;
-		 		fiptr1 = fiptr2;
-		 	}
-		 }
-		//break if no change
-		if (swap == start) break;
-		//else swap
-		temp = EasyArrayItem(array,start);
-		//have to set these directly because there's no EasyArraySet function;
-		array->array[start] = fiptr1;
-		array->array[swap] = temp;
-		//printf("\nGot here in siftDown");
-		//reset and continue
-		start = swap;
-		i = 2*start+1;
-	}
-	//printf("\nGot here end of siftDown");
+        if (test < 0){
+            swap=i;
+            fiptr1 = fiptr2;
+        }
+        //test right child
+        j=i+1;
+        if (j < n){
+            fiptr2 = (FITEM_STRUCT *)EasyArrayItem(array,j);
+            test = arsize_and_min_rep_cmp(fiptr2, fiptr1);
+            if(test < 0) {
+                swap = j;
+                fiptr1 = fiptr2;
+            }
+        }
+        //break if no change
+        if (swap == start) break;
+        //else swap
+        temp = EasyArrayItem(array,start);
+        //have to set these directly because there's no EasyArraySet function;
+        array->array[start] = fiptr1;
+        array->array[swap] = temp;
+        //printf("\nGot here in siftDown");
+        //reset and continue
+        start = swap;
+        i = 2*start+1;
+    }
+    //printf("\nGot here end of siftDown");
 }
 
 /*******************************************************************************************/
-void heapify(EASY_ARRAY *array, int n)
-{
-	  //n is length of array[0..n-1]
-	int start;
+void heapify(EASY_ARRAY *array, int n) {
+    //n is length of array[0..n-1]
+    int start;
 
-	for(start=(n-2)/2; start>=0; start--){
-		siftDown(array,start,n);
-	}
-	//printf("\nGot here end of heapify");
-
+    for(start=(n-2)/2; start>=0; start--) {
+        siftDown(array,start,n);
+    }
+    //printf("\nGot here end of heapify");
 }
 
-/*******************************************************************************************/
-void readRecordsFromFileToBuffer(FITEM_STRUCT *fiptr)
-{
-	   int  bn, buffercounter=0;
-	   RECORD_STRUCT * bufferptr, *tempbufferptr;
-	   
-		//allocate buffer pointer memory on reading first records
-		if (fiptr->buffer == NULL)
-			fiptr->buffer = (RECORD_STRUCT **)calloc(MAX_BUFFER_SIZE, sizeof(RECORD_STRUCT *));
+    /*******************************************************************************************/
+void readRecordsFromFileToBuffer(FITEM_STRUCT *fiptr) {
+    int  bn, buffercounter=0;
+    RECORD_STRUCT * bufferptr, *tempbufferptr;
 
-		//free records memory on subsequent rounds before allocating new records
-		if(fiptr->buffer[0] != NULL)
-			free(fiptr->buffer[0]);  
+    //allocate buffer pointer memory on reading first records
+    if (fiptr->buffer == NULL)
+        fiptr->buffer = (RECORD_STRUCT **)calloc(MAX_BUFFER_SIZE, sizeof(RECORD_STRUCT *));
 
-		//allocate new records memory 	
-		tempbufferptr = (RECORD_STRUCT *)calloc(MAX_BUFFER_SIZE, sizeof(RECORD_STRUCT));  
-		for(bn = 0; bn < MAX_BUFFER_SIZE; bn++){
-			fiptr->buffer[bn] = tempbufferptr;
-			tempbufferptr++;
-		}	
-		
-		//printf("\n\nBefore read records for file %s, bufferindex = %d, buffercount = %d",fiptr->inputfile, fiptr->bufferindex, fiptr->buffercount);
-		
-		//read records
-		//printf("\nReading records from %s",fiptr->inputfile);
-		while (!feof(fiptr->in) && buffercounter<MAX_BUFFER_SIZE) {
-			bufferptr = fiptr->buffer[buffercounter];
-			bufferptr->prof = ReadProfileWithRC( fiptr->in, &( bufferptr->profrc )); 
-			//test, because could be empty line
-			if (bufferptr->prof != NULL) {
-				buffercounter++;
-			}
-		}
-	
-		//set the counts
-		fiptr->buffercount = buffercounter; 
-		fiptr->bufferindex = 0;
-		//printf("\nRead %d records",fiptr->buffercount);
-	
-		//printf("\nAfter read records for file %s, bufferindex = %d, buffercount = %d",fiptr->inputfile, fiptr->bufferindex, fiptr->buffercount);
-	
-		//close the file if finished
-		if(fiptr->buffercount == 0){
-			//printf("\nNo more records, closing file %s.",fiptr->inputfile);
-			fclose(fiptr->in);
-			fiptr->inputclosed = 1;
-		}
+    //free records memory on subsequent rounds before allocating new records
+    if(fiptr->buffer[0] != NULL)
+        free(fiptr->buffer[0]);
+
+    //allocate new records memory
+    tempbufferptr = (RECORD_STRUCT *)calloc(MAX_BUFFER_SIZE, sizeof(RECORD_STRUCT)); 
+    for(bn = 0; bn < MAX_BUFFER_SIZE; bn++) {
+        fiptr->buffer[bn] = tempbufferptr;
+        tempbufferptr++;
+    }
+
+    //printf("\n\nBefore read records for file %s, bufferindex = %d, buffercount = %d",fiptr->inputfile, fiptr->bufferindex, fiptr->buffercount);
+
+    //read records
+    //printf("\nReading records from %s",fiptr->inputfile);
+    while (!feof(fiptr->in) && buffercounter<MAX_BUFFER_SIZE) {
+        bufferptr = fiptr->buffer[buffercounter];
+        bufferptr->prof = ReadProfileWithRC( fiptr->in, &( bufferptr->profrc ));
+        //test, because could be empty line
+        if (bufferptr->prof != NULL) {
+            buffercounter++;
+        }
+    }
+
+    //set the counts
+    fiptr->buffercount = buffercounter;
+    fiptr->bufferindex = 0;
+    //printf("\nRead %d records",fiptr->buffercount);
+
+    //printf("\nAfter read records for file %s, bufferindex = %d, buffercount = %d",fiptr->inputfile, fiptr->bufferindex, fiptr->buffercount);
+
+    //close the file if finished
+    if(fiptr->buffercount == 0) {
+        //printf("\nNo more records, closing file %s.",fiptr->inputfile);
+        fclose(fiptr->in);
+        fiptr->inputclosed = 1;
+    }
 
 }
 
 /*******************************************************************************************/
 void loadRecordFromBufferAndGetMinRepresetation (FITEM_STRUCT * fiptr, int identical_only) {
 
-	int i = fiptr->bufferindex;
+    int i = fiptr->bufferindex;
 
-	//load record
-	fiptr->prof = fiptr->buffer[i]->prof;
-	fiptr->profrc = fiptr->buffer[i]->profrc;
-	fiptr->dir = fiptr->buffer[i]->dir;
-	//probably don't need this
-	//fiptr->buffer[i] = NULL;
-	
-	fiptr->bufferindex++;
-	
-	//compute minRepresentation
-	if ( NULL != fiptr->prof ) {
-		fiptr->minRepresentation =  MinimumRepresentation( fiptr->prof->indices, fiptr->prof->proflen,
-				fiptr->profrc->indices, fiptr->profrc->proflen,
-				&( fiptr->minrlen ), identical_only );
-	}
-	else
-	{
-		fiptr->minRepresentation = NULL;
-	}
+    //load record
+    fiptr->prof = fiptr->buffer[i]->prof;
+    fiptr->profrc = fiptr->buffer[i]->profrc;
+
+    /*** this set of dir may be incorrect ***/
+    //	fiptr->dir = fiptr->buffer[i]->dir;
+    //probably don't need this
+    //fiptr->buffer[i] = NULL;
+
+    fiptr->bufferindex++;
+
+    //compute minRepresentation
+    if ( NULL != fiptr->prof ) {
+        fiptr->minRepresentation =  MinimumRepresentation( fiptr->prof->indices, fiptr->prof->proflen,
+                fiptr->profrc->indices, fiptr->profrc->proflen,
+                &( fiptr->minrlen ), identical_only );
+
+    /*** added RC here ***/
+        fiptr->dir = RC;
+    }
+    else {
+        fiptr->minRepresentation = NULL;
+    }
 }
 /*******************************************************************************************/
 int main( int argc, char **argv ) {
@@ -532,9 +532,9 @@ int main( int argc, char **argv ) {
     struct rlimit old_lim, lim, new_lim; 
     int filecounter, buffercounter, bn, softlimit;
     RECORD_STRUCT *tempbufferptr;
-   	struct rusage *usage;
-   	
-   	usage = (struct rusage *)calloc(1, sizeof(struct rusage));
+    struct rusage *usage;
+
+    usage = (struct rusage *)calloc(1, sizeof(struct rusage));
 
     // verify parameter count
     if ( argc < 3 ) {
@@ -648,7 +648,7 @@ int main( int argc, char **argv ) {
         }
     }
 
-  
+
     //Started 8/25/20 Gary Benson
     //changes to convert to a merge sort of the existing leb36 files which are already sorted
     //Basic outline
@@ -663,71 +663,71 @@ int main( int argc, char **argv ) {
     //    close the file
     //    do something in the heap to get the next smallest record
     //    keep repeating until the heap is empty
-  
-  
-  
-    
+
+
+
+
     // create a file array
     //expands when necessary
     FARRAY = EasyArrayCreate( 1000, NULL, NULL );
 
      startTime = time( NULL );
-	//open directory and get all files
+    //open directory and get all files
     // list file(s)
     d = opendir( inputfile );
-  
 
-	if ( d != NULL ) {
-		// fprintf( stderr, "inputfile last char: %c\n",
-		//   *( inputfile + strlen( inputfile ) - 1 ) );
-		//bigtempbuf holds name of input directory
-		bigtempbuf = calloc( indirlen + 30, sizeof( *bigtempbuf ) );  
-		// fprintf( stderr, "inputfile: %s\n", inputfile );
 
-		filecounter=0;
-		while ( ( de = readdir( d ) ) != NULL ) {
+    if ( d != NULL ) {
+        // fprintf( stderr, "inputfile last char: %c\n",
+        //   *( inputfile + strlen( inputfile ) - 1 ) );
+        //bigtempbuf holds name of input directory
+        bigtempbuf = calloc( indirlen + 30, sizeof( *bigtempbuf ) );  
+        // fprintf( stderr, "inputfile: %s\n", inputfile );
 
-			if ( strlen( de->d_name ) > 17 &&
-				 0 == strcasecmp( ".leb36.renumbered",
-						de->d_name + strlen( de->d_name ) - 17 ) ) {
-				//fiptr is a FITEM_STRUCT which contains too much information
-				//only needs inputfile path and name, file name, file pointer
-				filecounter++;
-				fiptr = smalloc( sizeof( FITEM_STRUCT ) );
+        filecounter=0;
+        while ( ( de = readdir( d ) ) != NULL ) {
 
-				// strcpy( bigtempbuf, inputfile );
-				sprintf( bigtempbuf, "%s/%s", inputfile, de->d_name );
+            if ( strlen( de->d_name ) > 17 &&
+                 0 == strcasecmp( ".leb36.renumbered",
+                        de->d_name + strlen( de->d_name ) - 17 ) ) {
+                //fiptr is a FITEM_STRUCT which contains too much information
+                //only needs inputfile path and name, file name, file pointer
+                filecounter++;
+                fiptr = smalloc( sizeof( FITEM_STRUCT ) );
 
-				fiptr->inputfile = strdup( bigtempbuf );
-				fiptr->d_name    = strdup( de->d_name );
-				EasyArrayInsert( FARRAY, fiptr );
-			}
-		}
+                // strcpy( bigtempbuf, inputfile );
+                sprintf( bigtempbuf, "%s/%s", inputfile, de->d_name );
 
-		closedir( d );
+                fiptr->inputfile = strdup( bigtempbuf );
+                fiptr->d_name    = strdup( de->d_name );
+                EasyArrayInsert( FARRAY, fiptr );
+            }
+        }
 
-    	// Set open file limit high enough for the number of files plus some extra
-		
-		//get existing limits
-		getrlimit(RLIMIT_NOFILE, &old_lim);
+        closedir( d );
 
-		softlimit = filecounter+1000;
-		if (softlimit > old_lim.rlim_max) {
-			fprintf( stderr, "Open file limit will be exceeded for .leb36.renumbered files; %d files to be read and %d + 1000 > hard limit = %llu\n", softlimit, softlimit,  old_lim.rlim_max );
-			exit (1);
-		}
-  
-		//adjust soft limit
-		lim.rlim_cur = softlimit; 
-		lim.rlim_max = old_lim.rlim_max;
-		setrlimit(RLIMIT_NOFILE, &lim);
+        // Set open file limit high enough for the number of files plus some extra
 
-		//debug
-		getrlimit(RLIMIT_NOFILE, &new_lim);
-		////print to confirm
-		printf("\nOpen file limits:\nOriginal: soft: %llu, hard: %llu\nNew: soft: %llu, hard: %llu",old_lim.rlim_cur, old_lim.rlim_max, new_lim.rlim_cur, new_lim.rlim_max);
+        //get existing limits
+        getrlimit(RLIMIT_NOFILE, &old_lim);
 
-    } 
+        softlimit = filecounter+1000;
+        if (softlimit > old_lim.rlim_max) {
+            fprintf( stderr, "Open file limit will be exceeded for .leb36.renumbered files; %d files to be read and %d + 1000 > hard limit = %llu\n", softlimit, softlimit,  old_lim.rlim_max );
+            exit (1);
+        }
+
+        //adjust soft limit
+        lim.rlim_cur = softlimit; 
+        lim.rlim_max = old_lim.rlim_max;
+        setrlimit(RLIMIT_NOFILE, &lim);
+
+        //debug
+        getrlimit(RLIMIT_NOFILE, &new_lim);
+        ////print to confirm
+        printf("Open file limits:\nOriginal: soft: %llu, hard: %llu\nNew: soft: %llu, hard: %llu\n",old_lim.rlim_cur, old_lim.rlim_max, new_lim.rlim_cur, new_lim.rlim_max);
+
+    }
     else {  //input 1 not a directory, means single file, not used in VNTRseek anymore
 
         if ( ftouch( inputfile ) ) {
@@ -876,7 +876,7 @@ int main( int argc, char **argv ) {
     EasyArrayQuickSort( FARRAY, name_cmp );
 
     // open input file(s) for reading
-    printf( "\nOpening files...\n" );
+    printf( "Opening files.\n" );
 
     if ( 0 == FARRAY->size ) {
         printf( "\nERROR: No input files found in the directory.\n\n" );
@@ -894,11 +894,11 @@ int main( int argc, char **argv ) {
             exit( 1 );
         }
 
-        printf( "\t%s\n", fiptr->inputfile );
+        //printf( "\t%s\n", fiptr->inputfile );
     }
 
-	printf("\nThere were %d files opened.",filecounter);
-	
+    printf("There were %d files opened.\n",filecounter);
+
     // open the output file for writing
     fpto = fopen( outputfile, "w" );
 
@@ -915,85 +915,85 @@ int main( int argc, char **argv ) {
         exit( 1 );
     }
 
-	//read first MAX_BUFFER_SIZE records from each file into a buffer for each file
-	for ( i = 0; i < filecounter; i++ ) {
-		fiptr = (FITEM_STRUCT *) EasyArrayItem( FARRAY, i );
+    //read first MAX_BUFFER_SIZE records from each file into a buffer for each file
+    for ( i = 0; i < filecounter; i++ ) {
+        fiptr = (FITEM_STRUCT *) EasyArrayItem( FARRAY, i );
         //read records
         readRecordsFromFileToBuffer(fiptr);
         if (fiptr->buffercount == 0){
-        	printf( "\nERROR: Input file %s was empty\n\n", fiptr->inputfile);
-        	exit( 1 );
-		}        		
-	}
+            printf( "\nERROR: Input file %s was empty\n\n", fiptr->inputfile);
+            exit( 1 );
+        }
+    }
 
-	//getrusage(RUSAGE_SELF, usage);
-	//printf("\nMemory usage: %ld",usage->ru_maxrss);
+    //getrusage(RUSAGE_SELF, usage);
+    //printf("\nMemory usage: %ld",usage->ru_maxrss);
 
-	//put smallest record in each buffer directly into the top level of fiptr for each FARRAY element and compute the minRepresentation
-	for ( i = 0; i < filecounter; i++ ) {
-		fiptr = (FITEM_STRUCT *) EasyArrayItem( FARRAY, i);
-		loadRecordFromBufferAndGetMinRepresetation (fiptr, IDENTICAL_ONLY); 
-	}	
+    //put smallest record in each buffer directly into the top level of fiptr for each FARRAY element and compute the minRepresentation
+    for ( i = 0; i < filecounter; i++ ) {
+        fiptr = (FITEM_STRUCT *) EasyArrayItem( FARRAY, i);
+        loadRecordFromBufferAndGetMinRepresetation (fiptr, IDENTICAL_ONLY); 
+    }
 
-	//test that filecounter and FARRAY->size are the same
-	if (filecounter!=FARRAY->size){
-		printf("\nError: filecounter: %d not equal to FARRAY->size: %zu",filecounter, FARRAY->size);
-		exit(1);
-	}
-	
-	//printf("\nGot here");
+    //test that filecounter and FARRAY->size are the same
+    if (filecounter!=FARRAY->size){
+        printf("\nError: filecounter: %d not equal to FARRAY->size: %zu",filecounter, FARRAY->size);
+        exit(1);
+    }
 
-	//treat FARRAY as the heap
-	//heapify FARRAY
-	heapify(FARRAY,filecounter);
+    //printf("\nGot here");
+
+    //treat FARRAY as the heap
+    //heapify FARRAY
+    heapify(FARRAY,filecounter);
 
 
-	//set up for loop
+    //set up for loop
     nread     = 0;   //***this has to be moved up to incorporate the records read before
     nwritten  = 0;
     lastwrite = NULL;
-    
-    while (1) { //break on empty heap 
-		
-		//get smallest record for writing
-		//printf("\nGot here before first fiptr");
-		fiptr = (FITEM_STRUCT *) EasyArrayItem( FARRAY, 0 );
-		
-		//test if done
-		//***alternately, test for filecounter == 0
-		if (fiptr->prof == NULL) 
-			break;
 
-		nread++;
-		
-		//decide how to write and write profiles
-		//first if identifies duplicates of the last written record
-		//test if all the below occur
-		//	1: there is a last written record
-		//	2: for this record and the last written one
-		//		the minimum profiles match
-		//	3: for this record and the last written one
-		//		either the two forward profiles match, 
-		//		the two reverse profiles match, 
-		//		or there is a match between one profile and one reverse profile
-		//	The last condition seems to be redundant, but probably assures that the two profiles are not NULLwhich would return a match for condition 2. 
-		
-		if ((lastwrite != NULL) && 
-			(0 == arsize_and_min_rep_cmp( lastwrite, fiptr ) ) &&
+    while (1) { //break on empty heap
 
-			// (ADDED apr 18, 2013)
-			( ( 0 == pindcmp( fiptr->prof->indices, lastwrite->prof->indices,
-						fiptr->prof->proflen, lastwrite->prof->proflen ) &&
-				0 == pindcmp( fiptr->profrc->indices,
-						lastwrite->profrc->indices, fiptr->profrc->proflen,
-						lastwrite->profrc->proflen ) ) ||
-			 ( 0 == pindcmp( fiptr->prof->indices, lastwrite->profrc->indices,
-						fiptr->prof->proflen, lastwrite->profrc->proflen ) &&
-				0 == pindcmp( fiptr->profrc->indices, lastwrite->prof->indices,
-						fiptr->profrc->proflen,
-						lastwrite->prof->proflen ) )
-			) ) 
-			{
+        //get smallest record for writing
+        //printf("\nGot here before first fiptr");
+        fiptr = (FITEM_STRUCT *) EasyArrayItem( FARRAY, 0 );
+
+        //test if done
+        //***alternately, test for filecounter == 0
+        if (fiptr->prof == NULL)
+            break;
+
+        nread++;
+
+        // decide how to write and write profiles
+        // first if identifies duplicates of the last written record
+        // test if all the below occur
+        //   1: there is a last written record
+        //   2: for this record and the last written one
+        //     the minimum profiles match
+        //   3: for this record and the last written one
+        //     either the two forward profiles match,
+        //     the two reverse profiles match,
+        //     or there is a match between one profile and one reverse profile
+        // The last condition seems to be redundant, but probably assures that the two profiles are not NULLwhich would return a match for condition 2. 
+
+        if ((lastwrite != NULL) &&
+            (0 == arsize_and_min_rep_cmp( lastwrite, fiptr ) ) &&
+
+            // (ADDED apr 18, 2013)
+            ( ( 0 == pindcmp( fiptr->prof->indices, lastwrite->prof->indices,
+                        fiptr->prof->proflen, lastwrite->prof->proflen ) &&
+                0 == pindcmp( fiptr->profrc->indices,
+                        lastwrite->profrc->indices, fiptr->profrc->proflen,
+                        lastwrite->profrc->proflen ) ) ||
+             ( 0 == pindcmp( fiptr->prof->indices, lastwrite->profrc->indices,
+                        fiptr->prof->proflen, lastwrite->profrc->proflen ) &&
+                0 == pindcmp( fiptr->profrc->indices, lastwrite->prof->indices,
+                        fiptr->profrc->proflen,
+                        lastwrite->prof->proflen ) )
+            ) ) 
+            {
 
             fprintf( fpto2, " %d%c", fiptr->prof->key,
               ( 0 == fiptr->dir ) ? '\'' : '\"' ); //add duplicate index entry
@@ -1001,21 +1001,21 @@ int main( int argc, char **argv ) {
             // in proclu 1.87 we need all profiles written
 
             WriteProfileWithRC( fpto, fiptr->prof, fiptr->profrc );
-            
+
             //don't free lastwrite here, because still in use
 
-		} else {
-		    
-		    //else condition if for non-duplicates
-		    nwritten++;
+        } else {
+
+            //else condition if for non-duplicates
+            nwritten++;
 
             // write out
 
             WriteProfileWithRC( fpto, fiptr->prof, fiptr->profrc );
-			//printf("\nGot here after first write");
-			//fflush(stdout);	
+            //printf("\nGot here after first write");
+            //fflush(stdout);
 
-	
+
             if ( NULL != lastwrite ) {
                 fprintf( fpto2, "\n" ); //start new preserved index entry
             }
@@ -1023,20 +1023,23 @@ int main( int argc, char **argv ) {
             fprintf( fpto2, "%d%c", fiptr->prof->key,
               ( 0 == fiptr->dir ) ? '\'' : '\"' ); // add preserved index entry
 
-			//free lastwrite here, because no longer used
-			
-			
-			if ( NULL != lastwrite ) {          //*** may have to free other things
+                    // make sure new minrep is equal or larger than old minrep
+
+
+            //free lastwrite here, because no longer used
+
+
+            if ( NULL != lastwrite ) {          //*** may have to free other things
                 FreeProfile( lastwrite->prof );
                 FreeProfile( lastwrite->profrc );
                 free( lastwrite->minRepresentation );
                 free( lastwrite );
             }
-            
 
-			//set lastwrite for comparison with next smallest record
-			//*** may not need all this information
-			lastwrite = smalloc( sizeof( FITEM_STRUCT ) );
+
+            //set lastwrite for comparison with next smallest record
+            //*** may not need all this information
+            lastwrite = smalloc( sizeof( FITEM_STRUCT ) );
             lastwrite->inputfile   = fiptr->inputfile;
             lastwrite->outputfile  = fiptr->outputfile;
             lastwrite->outputfile2 = fiptr->outputfile2;
@@ -1046,14 +1049,14 @@ int main( int argc, char **argv ) {
             lastwrite->minRepresentation = pintdup( fiptr->minRepresentation, fiptr->minrlen );
             lastwrite->minrlen = fiptr->minrlen;
 
-			//printf("\nGot here after lastwrite assignment");
-			//fflush(stdout);	
+            //printf("\nGot here after lastwrite assignment");
+            //fflush(stdout);
 
             // open new file?
             //shouldn't this test be before the record is written?
             if ( !SINGLE_OUTFILE && ( nwritten % ( RECORDS_PER_FILE ) ) == 0 ) {
-				//printf("\nGot here just after test for multiple output files");
-				//fflush(stdout);	
+                //printf("\nGot here just after test for multiple output files");
+                //fflush(stdout);
                 fclose( fpto );
                 fclose( fpto2 );
 
@@ -1080,74 +1083,71 @@ int main( int argc, char **argv ) {
                       outputfile2 );
                     exit( 1 );
                 }
-			
-			}
-		}
-		
-		
-		//at this point, free the profiles and minRepresentation
-		FreeProfile( fiptr->prof );
-		FreeProfile( fiptr->profrc );
-		free( fiptr->minRepresentation );
+            }
+        }
 
-		//debug test
-		//printf("\nGot here before test of null fiptr");
-		//fflush(stdout);	
-		//if (fiptr == NULL) {			
-		//	printf("\nfiptr is null");
-		//	fflush(stdout);
-		//}	
-		//printf("\nGot here after test of null fiptr");
-		//fflush(stdout);	
 
-		 //load new profiles or put last item in heap at top and shorten heap
-		 //check buffer not empty
-		 if (fiptr->bufferindex != fiptr->buffercount){		 		
-		 		loadRecordFromBufferAndGetMinRepresetation (fiptr, IDENTICAL_ONLY);		 
-		 }
-		 else
-		 { 
-		 	//buffer is empty
-			//read records from file into the buffer
-			//debug print
-			readRecordsFromFileToBuffer(fiptr);
-			
-		 	//if some records were read, load new profile
-		 	if(fiptr->buffercount != 0){
-		 		loadRecordFromBufferAndGetMinRepresetation (fiptr, IDENTICAL_ONLY);
-		 		
-			}
-			else
-			{
-				//no more records for this fiptr
-				//no profiles or minRepresentations remain				
-				free(fiptr->buffer[0]);
-				free(fiptr->buffer);
-				free(fiptr);
+        //at this point, free the profiles and minRepresentation
+        FreeProfile( fiptr->prof );
+        FreeProfile( fiptr->profrc );
+        free( fiptr->minRepresentation );
 
-				//get the last FARRAY item so it can be moved to the top
-				//it already has the profile and minRepresentation information 
-				fiptr = EasyArrayItem(FARRAY, filecounter-1);
-				FARRAY->array[0] = fiptr;
+        //debug test
+        //printf("\nGot here before test of null fiptr");
+        //fflush(stdout);
+        //if (fiptr == NULL) {
+        //    printf("\nfiptr is null");
+        //    fflush(stdout);
+        //}
+        //printf("\nGot here after test of null fiptr");
+        //fflush(stdout);
 
-				//reduce filecounter by 1
-				filecounter--;
-				printf("\nFiles left = %d",filecounter);
-				
-				//test if heap empty and if so, break out of while
-				if(filecounter == 0)
-					break;
-			}
+         //load new profiles or put last item in heap at top and shorten heap
+         //check buffer not empty
+         if (fiptr->bufferindex != fiptr->buffercount){
+                loadRecordFromBufferAndGetMinRepresetation (fiptr, IDENTICAL_ONLY);
+         }
+         else
+         {
+            //buffer is empty
+            //read records from file into the buffer
+            //debug print
+            readRecordsFromFileToBuffer(fiptr);
 
-		 }
-			
-		//fix heap
-		siftDown(FARRAY, 0, filecounter);
+            //if some records were read, load new profile
+            if(fiptr->buffercount != 0){
+                loadRecordFromBufferAndGetMinRepresetation (fiptr, IDENTICAL_ONLY);
 
-		//*** fix here
-        // make sure new minrep is equal or larger than old minrep
-	}
-		
+            }
+            else
+            {
+                //no more records for this fiptr
+                //no profiles or minRepresentations remain
+                free(fiptr->buffer[0]);
+                free(fiptr->buffer);
+                free(fiptr);
+
+                //get the last FARRAY item so it can be moved to the top
+                //it already has the profile and minRepresentation information 
+                fiptr = EasyArrayItem(FARRAY, filecounter-1);
+                FARRAY->array[0] = fiptr;
+
+                //reduce filecounter by 1
+                filecounter--;
+                //printf("\nFiles left = %d",filecounter);
+
+                //test if heap empty and if so, break out of while
+                if(filecounter == 0)
+                    break;
+            }
+
+         }
+
+        //fix heap
+        siftDown(FARRAY, 0, filecounter);
+
+    }
+
 
     free( outputbname );
     free( outputdname );
@@ -1155,15 +1155,15 @@ int main( int argc, char **argv ) {
     free( outputfile2 );
     free( outdb );
 
-    printf( "\n\n%llu profiles read, %llu profiles marked nonredundant. (time: "
-            "%ld seconds)\n\n",
+    printf( "%llu profiles read, %llu profiles marked nonredundant. (time: "
+            "%ld seconds)\n",
     nread, nwritten, time( NULL ) - startTime );
     fflush( stdout );
-    
+
     getrusage(RUSAGE_SELF, usage);
-	printf("Memory usage: %ld\n",usage->ru_maxrss);
-	//free(usage);
-    
+    printf("Memory usage: %ld\n",usage->ru_maxrss);
+    //free(usage);
+
     return 0;
 }
 
@@ -1176,7 +1176,6 @@ void doCriticalErrorAndQuit( const char *format, ... ) {
 
     if ( format == NULL )
         exit( 0 );
-    ;
 
     va_start( argp, format );
     vprintf( format, argp );
