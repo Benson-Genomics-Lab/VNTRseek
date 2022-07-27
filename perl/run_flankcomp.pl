@@ -139,13 +139,13 @@ print "Printing DNA and inserting into cluster table.\n";
 
 # now print dna and quals (also insert into cluster table)
 $sth = $read_dbh->prepare(
-    q{SELECT rid,flankleft,sequence,flankright,pattern,copynum,direction
+    q{SELECT rid, flankleft, sequence, flankright, pattern, copynum, direction
     FROM refdb.fasta_ref_reps
     INNER JOIN clusterlnk ON rid=-repeatid
     WHERE clusterid = ?}
 ) or die "Couldn't prepare statement: " . $read_dbh->errstr;
 $sth1 = $read_dbh->prepare(
-    q{SELECT rid, dna, first, last, pattern, copynum,direction
+    q{SELECT rid, dna, first, last, pattern, copynum, direction
     FROM fasta_reads
     INNER JOIN replnk ON fasta_reads.sid=replnk.sid
     INNER JOIN clusterlnk ON rid=repeatid

@@ -1,4 +1,4 @@
-# Version 2.0.1 - Jul 21, 2022
+# Version 2.0.1 - Jul 26, 2022
 
 - fixed `NPROCESSES` internally so config is accurate
 - made support for relative input, output, and temp paths

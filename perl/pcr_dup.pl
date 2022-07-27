@@ -105,7 +105,7 @@ $sth = $dbh->prepare(q{INSERT INTO pduptemp VALUES (?, ?)});
 
 
 opendir( $dir, $indexfolder );
-@indexfiles = grep( /\.(?:pcr_dup)$/, readdir($dir) );
+@indexfiles = grep( /\.(?:pcr_dup)$/, readdir($dir) ); # KA: more grepps
 closedir($dir);
 
 my $i       = 0;
@@ -302,7 +302,7 @@ if ( open( my $fh, ">$out_folder/$DBSUFFIX.ties_entries.txt" ) ) {
             . $data[2] . "\t"
             . $data[3] . "\n";
     }
-    $sth->finish;
+    $sth->finish();
     close($fh);
 }
 print "Ties list complete with $i removed entries.\n";

@@ -571,6 +571,7 @@ if ( $STEP == 4 ) {
     # For now, extract the file we need using the database
     my $dbh = get_ref_dbh( $opts{REFERENCE}, { redo => $opts{REDO_REFDB} } );
 
+    my $reference_folder = File::Temp->newdir();
     # Filtered file, ordered by min representation as given by redund
     # Must negate rids for refset
     my $get_ref_leb36 = q{SELECT -rid, length(pattern) AS patsize,
@@ -580,7 +581,6 @@ if ( $STEP == 4 ) {
         JOIN minreporder USING (rid)
     ORDER BY minreporder.idx ASC};
     my $get_filtered_set_profiles_sth = $dbh->prepare($get_ref_leb36);
-    my $reference_folder              = File::Temp->newdir();
 
     $get_filtered_set_profiles_sth->execute();
     open my $tmp_filt_file_fh, ">", "$reference_folder/reference.leb36";
@@ -591,11 +591,9 @@ if ( $STEP == 4 ) {
 
     # Get rotindex saved in db
     my ($rotindex_str) = $dbh->selectrow_array(
-        q{SELECT rotindex
-        FROM files}
+        q{SELECT rotindex FROM files}
     );
-    die
-        "Error getting rotindex file from filtered set. Try rerunning with --redo option\n"
+    die "Error getting rotindex file from filtered set. Try rerunning with --redo option\n"
         unless ($rotindex_str);
     $dbh->disconnect();
 
@@ -633,7 +631,7 @@ if ( $STEP == 4 ) {
     # remove clusters with no references
     print "Removing clusters with no references (clara/pam split).\n";
     opendir( DIR, $read_profiles_folder_clean );
-    my @files = grep( /clu$/, readdir(DIR) );
+    my @files = grep( /clu$/, readdir(DIR) ); # KA: more file grepping
     closedir(DIR);
 
     foreach my $file (@files) {

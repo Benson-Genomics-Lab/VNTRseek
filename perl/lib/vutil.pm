@@ -15,9 +15,9 @@ if ( $ENV{DEBUG} ) {
 
 use base 'Exporter';
 our @EXPORT_OK = qw(trim read_config_file get_config validate_config
-    set_credentials get_dbh get_ref_dbh make_refseq_db load_refprofiles_db
+    get_dbh get_ref_dbh make_refseq_db load_refprofiles_db
     run_redund write_sqlite set_statistics get_statistics set_datetime
-    print_config trim create_blank_file sqlite_install_RC_function
+    print_config trim sqlite_install_RC_function
     gen_exec_array_cb vs_db_insert);
 
 # vutil.pm
@@ -521,13 +521,12 @@ sub get_dbh {
     my ($schema_ver) = $dbh->selectrow_array(q{PRAGMA user_version});
 
     if ( $schema_ver < 1 ) {
-        $dbh->disconnect;
-        $dbh
-            = DBI->connect( "DBI:SQLite:dbname=$dbfile", undef, undef,
+        $dbh->disconnect();
+        $dbh = DBI->connect( "DBI:SQLite:dbname=$dbfile", undef, undef,
             { %dbi_opts, ReadOnly => 0, } )
             or die "Could not connect to database $dbfile: $DBI::errstr";
         $dbh->do(q{PRAGMA foreign_keys = off});
-        $dbh->begin_work;
+        $dbh->begin_work();
         $dbh->do(q{ALTER TABLE stats RENAME TO _old_stats});
         $dbh->do(
             q{CREATE TABLE `stats` (
@@ -634,9 +633,8 @@ sub get_dbh {
         $dbh->do(q{PRAGMA foreign_keys = on});
         $dbh->do(q{PRAGMA user_version = 1});
         $schema_ver = 1;
-        $dbh->disconnect;
-        $dbh
-            = DBI->connect( "DBI:SQLite:dbname=$dbfile",
+        $dbh->disconnect();
+        $dbh = DBI->connect( "DBI:SQLite:dbname=$dbfile",
             undef, undef, \%dbi_opts, )
             or die "Could not connect to database $dbfile: $DBI::errstr";
     }

@@ -49,7 +49,7 @@ my $dbh = get_ref_dbh($run_conf{'REFERENCE'}, { readonly => 1 } );
     = $dbh->selectrow_array(
     q{SELECT COUNT(*) FROM ref_profiles WHERE redund = 0});
 
-$dbh->disconnect;
+$dbh->disconnect();
 
 open( $input, "-|", "cat $rpfc/*.rotindex | wc -l" );
 $rc = <$input>;

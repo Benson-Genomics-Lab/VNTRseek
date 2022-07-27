@@ -1134,7 +1134,7 @@ int main( int argc, char **argv ) {
 
                 //reduce filecounter by 1
                 filecounter--;
-                printf("\nFiles left = %d",filecounter);
+                //printf("\nFiles left = %d",filecounter);
 
                 //test if heap empty and if so, break out of while
                 if(filecounter == 0)

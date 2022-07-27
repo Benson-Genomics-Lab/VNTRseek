@@ -123,12 +123,12 @@ while ( my @data = $readsWithMultTRsMappedMultRefs_sth->fetchrow_array() ) {
             max( $oldRlast, $data2[7] ) - min( $oldRfirst, $data2[6] ) + 1 );
 
         if ( $j == 1 ) {
-            print $outfh "\n"
+            print $outfh ""
                 . $i
                 . ". read='"
                 . $data2[2]
                 . "' refs=("
-                . $data[1] . ")";
+                . $data[1] . ")\n";
         }
 
 # 1st entry can only be deleted due to NOT being on same chromosome and close together as 2nd entry (or more than $maxRepeatsPerRead entries exist)
@@ -191,7 +191,6 @@ while ( my @data = $readsWithMultTRsMappedMultRefs_sth->fetchrow_array() ) {
     }
 
     $ReadsDeleted+=$isDeleted;
-
 }
 
 # my $numReadsWithMultTRsMappedMultRefs
