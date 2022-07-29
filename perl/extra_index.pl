@@ -5,37 +5,29 @@
 use strict;
 use warnings;
 use Cwd;
-use POSIX qw(strftime);
+use POSIX "strftime";
 use DBI;
 use File::Basename;
 
 use FindBin;
 use lib "$FindBin::RealBin/lib";
-use vutil qw(trim get_config get_dbh set_statistics get_trunc_query);
+use vutil qw(trim get_config get_dbh set_statistics);
 
-my $FASTA = 1;
+print strftime( "Start: %F %T\n\n", localtime );
 
-warn strftime( "\n\nstart: %F %T\n\n", localtime );
-
+# Arguments
 my $argc = @ARGV;
+die "Usage: extra_index.pl expects 2 arguments.\n"
+    unless $argc >= 2;
 
-if ( $argc < 3 ) { die "Usage: extra_index.pl expects 3 arguments!\n"; }
+my $curdir = getcwd();
+my $folder = $ARGV[0];
+my $cnf    = $ARGV[1];
 
-my $curdir = getcwd;
-
-my $folder   = $ARGV[0];
-my $DBSUFFIX = $ARGV[1];
-my $run_dir  = $ARGV[2];
-
-# set these mysql credentials in vs.cnf (in installation directory)
-my %run_conf = get_config( $DBSUFFIX, $run_dir );
-my $dbh      = get_dbh()
+# database
+my %run_conf = get_config("CONFIG", $cnf);
+my $dbh = get_dbh()
     or die "Could not connect to database: $DBI::errstr";
-
-# create folder
-my $exstring = "rm -rf $folder";
-system($exstring);
-mkdir($folder);
 
 my $sth;
 my $query;
@@ -50,17 +42,16 @@ my $sql_clause = q{
     replnk ON replnk.rid=map.readid INNER JOIN
     fasta_reads on fasta_reads.sid=replnk.sid
   ORDER BY map.refid,map.readid};
-($num) = $dbh->selectrow_arrayref( q{SELECT COUNT(*) } . $sql_clause )
+($num) = $dbh->selectrow_array( q{SELECT COUNT(*) } . $sql_clause )
     or die "Couldn't execute statement: " . $dbh->errstr;
-$sth
-    = $dbh->prepare(
+$sth = $dbh->prepare(
     q{SELECT map.refid, map.readid, replnk.sid, replnk.first, replnk.last, replnk.copynum, replnk.patsize, replnk.pattern,fasta_reads.dna}
         . $sql_clause )
     or die "Couldn't prepare statement: " . $dbh->errstr;
 
 $sth->execute() or die "Couldn't execute: " . $sth->errstr;
 
-print "\n best best best records: $num\n";
+print "Best best best records: $num\n";
 
 my $oldref  = -1;
 my $oldread = -1;
@@ -72,7 +63,6 @@ while ( my @data = $sth->fetchrow_array() ) {
     if ( $data[0] != $oldref ) {
         if ( $i != 0 ) { close($fh); }
         $nrefs++;
-        print "\n$nrefs";
         open $fh, ">$folder/$data[0].seq" or die $!;
     }
     print $fh "$data[1] $data[2] $data[3] $data[4]";
@@ -83,16 +73,11 @@ while ( my @data = $sth->fetchrow_array() ) {
     $oldread = $data[1];
     $i++;
 }
-
 close($fh) if ($fh);
-
-$sth->finish;
-
-print "\n\nProcessing complete (extra_index.pl), $nrefs files created.\n";
-
-warn strftime( "\n\nend: %F %T\n\n", localtime );
-#
+$sth->finish();
 $dbh->disconnect();
 
-1;
+print "Processing complete (extra_index.pl), $nrefs files created.\n";
+print strftime( "\nEnd: %F %T\n\n", localtime );
 
+1;

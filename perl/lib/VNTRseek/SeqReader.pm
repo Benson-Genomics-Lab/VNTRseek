@@ -21,8 +21,8 @@ use warnings;
 use autodie;
 use Try::Tiny;
 use Carp;
-use Exporter qw(import);
-use POSIX qw(ceil);
+use Exporter "import";
+use POSIX "ceil";
 
 # use IO::Async::Function;
 # use IO::Async::Stream;
@@ -166,19 +166,14 @@ sub _init_input_list {
     # If BAM, init files list
     if ( $input_format eq "bam" ) {
         @filenames = $self->init_bam( files => \@filenames );
-        warn "BAM input. Will need to process "
+        print "BAM input. Will need to process "
             . scalar(@filenames)
             . " sets of reads from file.\n";
     }
     else {
-        warn scalar(@filenames)
+        print scalar(@filenames)
             . " supported files ($input_format format, $compression_msg) found in $self->{input_dir}\n";
     }
-
-    # if ( $ENV{DEBUG} ) {
-    #     use Data::Dumper;
-    #     say Dumper( \@filenames );
-    # }
 
     $self->{num_inputs}   = scalar @filenames;
     $self->{inputs}       = \@filenames;
@@ -203,10 +198,6 @@ sub _next_reader {
     my $file_index = $self->{num_inputs} - @{ $self->{inputs} };
     my $next_input = shift( @{ $self->{inputs} } );
 
-    # if ( $ENV{DEBUG} ) {
-    #     use Data::Dumper;
-    #     say Dumper( \$next_input );
-    # }
     if ($next_input) {
         return $self->{_reader}->(
             decom       => $self->{decom},
@@ -252,13 +243,7 @@ sub get_reads {
 
             # Trim tags, if needed, and prepare reverse complement
             if ( $self->{strip_454_TCAG} && ( $seq !~ s/^TCAG//i ) ) {
-                if ( $self->{warn_454_TCAG} ) {
-                    warn
-                        "Read does not start with keyseq TCAG. Full sequence: $seq\n";
-                }
-
-                die
-                    "Read does not start with keyseq TCAG. Full sequence: $seq\n";
+                die "Read $header does not start with keyseq TCAG. Full sequence: $seq\n";
             }
 
             $read_hash{$header} = $seq;
@@ -291,7 +276,7 @@ sub get_reads {
 
     # if (@read_list) {
     #     my $start_id = ( $split_index * $self->{reads_split} ) + 1;
-    #     say "Queuing worker: $split_index, starting id: $start_id";
+    #     #print "Queuing worker: $split_index, starting id: $start_id\n";
     #     my $f = $read_function->call(
     #         args => [
     #             {   output_prefix    => "$self->{output_dir}/$split_index",
@@ -433,14 +418,14 @@ sub run_trf {
             }
 
             if ( $read_href->{$header} ) {
-                say $reads_fh "$header\t" . $read_href->{$header};
+                print $reads_fh "$header\t" . $read_href->{$header} . "\n";
                 $read_href->{$header} = "";
             }
         }
 
         # .reads file gets one more line with the total number
         # of reads we read (different from reads with TRs count)
-        # say $reads_fh "totalreads\t$num_reads";
+        # print $reads_fh "totalreads\t$num_reads\n";
         close $reads_fh;
 
         # Get stats from indexhist file
@@ -497,7 +482,8 @@ sub read_fastaq {
     # Since we are using seqtk, use pipe open mode
     my $openmode = "-|";
 
-    warn "Processing file " . $args{input} . "\n";
+    # this will be a problem given many input fastas
+    print "Processing file " . $args{input} . "\n";
     my $filename = '"' . $args{input} . '"';
 
     if ( $args{decom} ) {
@@ -617,9 +603,6 @@ Requires samtools as an external dependency.
 
 sub read_bam {
     my %args = @_;
-
-    # use Data::Dumper;
-    # say "Input: " . Dumper($args{input});
 
     # warn "$current_idx\n";
     my $cmdhash = $args{input};

@@ -228,7 +228,7 @@ int main( int argc, char *argv[] ) {
           "MAXERRORS MAX_FLANK_CONSIDERED MAXTHREADS PATLEN_SIZE_ERR\n\n" );
 
     outdir   = argv[1];
-    xmldir   = argv[2];
+    xmldir   = argv[2]; // never used
     filename = argv[3];
 
     if ( argc >= 5 ) {
@@ -275,7 +275,7 @@ int main( int argc, char *argv[] ) {
     }
 
     /* enter out dir */
-    if ( chdir( outdir ) ) {
+    if ( chdir( outdir ) ) { // should this be negated?
         mkdir( outdir, 0755 );
 
         if ( chdir( outdir ) ) {
@@ -762,14 +762,14 @@ int main( int argc, char *argv[] ) {
             PARR[ThreadCounter - 1] = pID;
 
             // Code below only executed by parent process
-            printf( "processing: %d_%d (pid: %d) threadcounter: %d\n", a1, a2,
-              pID, ThreadCounter );
+            //printf( "processing: %d_%d (pid: %d) threadcounter: %d\n", a1, a2,
+            //  pID, ThreadCounter );
 
             /* child has its own copy now, so it's ok to destroy for parent */
             EasyListDestroy( ref_list );
             EasyListDestroy( read_list );
 
-            /* if full batch scheled, wait for one to finishe and schedule
+            /* if full batch scheduled, wait for one to finish and schedule
              * another */
             if ( ThreadCounter >= MAXTHREADS ) {
 
@@ -778,8 +778,8 @@ int main( int argc, char *argv[] ) {
                 if ( -1 == retid )
                     doCriticalErrorAndQuit(
                       "\n\nFlankAlign - wait function returned -1. Aborting!" );
-                else
-                    printf( "\tterminated: %d\n", retid );
+                //else
+                //    printf( "\tterminated: %d\n", retid );
 
                 for ( i = 1; i < ThreadCounter; i++ ) {
                     PARR[i - 1] = PARR[i];
@@ -809,15 +809,14 @@ int main( int argc, char *argv[] ) {
         if ( -1 == retid )
             doCriticalErrorAndQuit(
               "\n\nFlankAlign - wait function returned -1. Aborting!" );
-        else
-            printf( "\tterminated: %d\n", retid );
+        //else
+        //    printf( "\tterminated: %d\n", retid );
     }
     ThreadCounter = 0;
 
     /* done */
     fclose( rd_fp );
-    printf( "\ndone!!! processed: %lld, ThreadCounter: %d\n", processed,
-      ThreadCounter );
+    printf( "Processed: %lld\n", processed);
 
     return 0;
 }

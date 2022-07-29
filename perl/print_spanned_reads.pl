@@ -21,7 +21,7 @@ use FindBin;
 use File::Basename;
 
 use lib "$FindBin::RealBin/lib";
-use vutil qw(trim get_config get_dbh set_statistics get_trunc_query);
+use vutil qw(trim get_config set_statistics);
 
 my $strip454 = "0";
 
@@ -54,29 +54,20 @@ sub dummyquals($) {
 }
 
 my $argc = @ARGV;
-
-if ( $argc < 4 ) {
-    die
-        "Usage: print_spanned_reads.pl dbsuffix run_dir indexfolder fastafolder\n";
-}
+die "Usage: print_spanned_reads.pl expects 3 arguments.\n"
+    unless $argc >= 3;
 
 my $curdir      = getcwd;
-my $DBSUFFIX    = $ARGV[0];
-my $run_dir     = $ARGV[1];
-my $indexfolder = $ARGV[2];
-my $fastafolder = $ARGV[3];
+my $cnf         = $ARGV[0];
+my $indexfolder = $ARGV[1];
+my $fastafolder = $ARGV[2];
 
-my %run_conf = get_config( $DBSUFFIX, $run_dir );
+my %run_conf = get_config("CONFIG", $cnf);
 
+my %HEADHASH = ();
 my $totalReads = 0;
 
-my $dbh = get_dbh()
-    or die "Could not connect to database: $DBI::errstr";
-my %HEADHASH = ();
-
-print STDERR
-    "\nreading index file and storing relevant entries in database..."
-    . "\n\n";
+# read index file and store relevant entries
 opendir( DIR, $indexfolder );
 my @indexfiles = sort grep( /\.(?:index\.renumbered)$/, readdir(DIR) );
 closedir(DIR);
@@ -96,8 +87,6 @@ my $fh1;
 my $fh2;
 
 foreach my $ifile (@indexfiles) {
-
-    print STDERR "\n" . $ifile;
 
     open( $fh1, "<$indexfolder/$ifile" ) or die $!;
     $i = 0;
@@ -136,9 +125,7 @@ foreach my $ifile (@indexfiles) {
 $totalReads = 0;
 $inserted   = 0;
 $processed  = 0;
-print STDERR
-    "\nreading gzipped fasta files and storing relevant entries in database..."
-    . "\n\n";
+# read fasta files and store relevant entries
 opendir( DIR, $fastafolder );
 
 # the only extensions are .tgz, .tar.gz, and .gz
@@ -165,7 +152,6 @@ my $HEADER_SUFFIX = "";
 
 FILE:
 foreach (@tarballs) {
-    print STDERR $_ . "";
 
     if ( $_ =~ /\.(?:tgz|tar\.gz)$/ ) {
         open( FASTA_IN, "tar xzfmoO '$fastafolder/$_' |" );
@@ -335,15 +321,8 @@ foreach (@tarballs) {
                 print ">$headstr", "\n", trimall("$dnastr"), "\n";
             }
         }
-
     }
-
-    print STDERR " (processed: $processed)\n";
-
 }
-
-# disconnect
-$dbh->disconnect();
 
 1;
 

@@ -6,67 +6,49 @@ use strict;
 use warnings;
 use Cwd;
 use DBI;
-use List::Util qw[min max];
-use POSIX qw(strftime);
+use List::Util qw(min max);
+use POSIX "strftime";
 use FindBin;
 use File::Basename;
 
 use lib "$FindBin::RealBin/lib";
 use vutil
-    qw(get_config get_dbh set_statistics get_trunc_query gen_exec_array_cb);
+    qw(get_config get_dbh set_statistics gen_exec_array_cb);
 
-my $RECORDS_PER_INFILE_INSERT = 100000;
 
-warn strftime( "\n\nstart: %F %T\n\n", localtime );
+print strftime( "Start: %F %T\n\n", localtime );
 
 my $argc = @ARGV;
+die "Usage: pcr_dup.pl expects 6 arguments.\n"
+    unless $argc >= 6;
 
-if ( $argc < 7 ) {
-    die
-        "Usage: pcr_dup.pl indexfolder profcleanfolder dbname msdir cpucount tempdir ignorepcrdups\n";
-}
-
-my $curdir = getcwd;
-
+my $curdir       = getcwd();
 my $indexfolder  = $ARGV[0];
-my $pcleanfolder = $ARGV[1];
+my $out_folder   = $ARGV[1];
 my $DBSUFFIX     = $ARGV[2];
-my $run_dir      = $ARGV[3];
+my $cnf          = $ARGV[3];
 my $cpucount     = $ARGV[4];
-my $TEMPDIR      = $ARGV[5];
-my $KEEPPCRDUPS  = $ARGV[6];
+my $KEEPPCRDUPS  = $ARGV[5];
 
-# get run configuration, let's us connect to DB
-my %run_conf = get_config( $DBSUFFIX, $run_dir );
+my %run_conf = get_config("CONFIG", $cnf);
 my $dbh = get_dbh()
     or die "Could not connect to database: $DBI::errstr";
 my %stats;
 
+my $RECORDS_PER_INFILE_INSERT = 100000;
+my $files_to_process = 100;    # number of files to process in one batch
+my $files_processed  = 0;      # files processed
+my %p;                         # associates forked pids with output pipe pids
+
 # process
-warn "reading: $indexfolder\n";
+print "Reading: $indexfolder\n";
 
 opendir( my $dir, $indexfolder );
 my @indexfiles = grep( /\.(?:seq)$/, readdir($dir) );
 closedir($dir);
 
-#my $i=0;
-#foreach my $ifile (@indexfiles) {
-# $i++;
-# print "\n $i. ". $ifile."...";
-
-# my $exstring = "./pcr_dup.exe $indexfolder/$ifile $indexfolder/$ifile.pcr_dup 2 3 > /dev/null";
-# #my $exstring = "./pcr_dup.exe $indexfolder/$ifile $indexfolder/$ifile.pcr_dup 2 3 > $indexfolder/$ifile.pcr_log";
-# system($exstring);
-#}
-
-my $files_to_process = 100;    # number of files to process in one batch
-my $files_processed  = 0;      # files processed
-my %p;                         # associates forked pids with output pipe pids
-
-my $MYLOCK = 0;
-
 my $tarball_count = @indexfiles;
-warn "$tarball_count supported files found in $indexfolder\n";
+print "$tarball_count supported files found in $indexfolder\n";
 
 #die "Exiting\n" if $tarball_count == 0;
 $files_to_process = $tarball_count if $files_to_process > $tarball_count;
@@ -87,10 +69,10 @@ while ( ( my $pid = wait ) != -1 ) {
     }
 }
 
-warn "Processing complete -- processed $files_processed cluster(s).\n";
+print "Processing complete -- processed $files_processed cluster(s).\n";
 
 # load results
-warn "reading: $indexfolder\n";
+print "Reading: $indexfolder\n";
 
 # first count the intersect before pcr dup
 my $rrintersect = 0;
@@ -121,14 +103,9 @@ $dbh->do("PRAGMA foreign_keys = OFF");
 $dbh->do("PRAGMA synchronous = OFF");
 $sth = $dbh->prepare(q{INSERT INTO pduptemp VALUES (?, ?)});
 
-#my $query = "DELETE FROM rank WHERE refid=? AND readid=?;";
-#$sth = $dbh->prepare($query);
-
-#$query = "DELETE FROM rankflank WHERE refid=? AND readid=?;";
-#my $sth1 = $dbh->prepare($query);
 
 opendir( $dir, $indexfolder );
-@indexfiles = grep( /\.(?:pcr_dup)$/, readdir($dir) );
+@indexfiles = grep( /\.(?:pcr_dup)$/, readdir($dir) ); # KA: more grepps
 closedir($dir);
 
 my $i       = 0;
@@ -138,11 +115,11 @@ foreach my $ifile (@indexfiles) {
 
     $i++;
 
+    # KA: we already know this regex will match, no need for the if
     if ( $ifile =~ /(\d+)\.seq\.pcr_dup/ ) {
 
         my $ref         = $1;
         my $filedeleted = 0;
-        print "\n $i. " . $ifile . "...";
 
         if ( open( my $fh, "$indexfolder/$ifile" ) ) {
 
@@ -166,8 +143,6 @@ foreach my $ifile (@indexfiles) {
             while (<$fh>) {
                 if (/^compare: (\d+) (\d+) (\d+) (\d+)\|(\d+)/) {
 
-                    #my $read = max($1,$5);
-
                     my $read;
                     if ( $NEWIDS{$1} > $NEWIDS{$5} ) {
                         $read = $1;
@@ -180,10 +155,6 @@ foreach my $ifile (@indexfiles) {
                     }
 
                     if ( !exists $RHASH{$read} ) {
-
-                        #$sth->execute($ref,$read);
-                        #$sth1->execute($ref,$read);
-                        #print "deleting: -$ref -> $read\n";
                         $deleted++;
                         $filedeleted++;
                         push @to_delete, [ $ref, $read ];
@@ -192,50 +163,23 @@ foreach my $ifile (@indexfiles) {
                             my $cb = gen_exec_array_cb( \@to_delete );
                             my $rows = vs_db_insert( $dbh, $sth, $cb,
                                 "Error when inserting entries into temporary pcr duplicates table.\n");
-                            if ($rows) {
-                                @to_delete = ();
-                            }
-                            else {
-                                die
-                                    "Something went wrong inserting, but somehow wasn't caught!\n";
-                            }
+                            @to_delete = ();
                         }
-
-                  #print "$1 (newid:$NEWIDS{$1}) - $5 (newid: $NEWIDS{$5})\n";
-                  #exit(1);
-
                         $PENTRIES{ $ref . "_" . $read } = 1;
-
                     }
-
                     $RHASH{$read} = 1;
-
                 }
             }
-
             close($fh);
-            print "($filedeleted deleted)";
-
         }
-
     }
-
 }
-
-#$sth->finish;
-#$sth1->finish;
 
 if (@to_delete) {
     my $cb = gen_exec_array_cb( \@to_delete );
     my $rows = vs_db_insert( $dbh, $sth, $cb,
         "Error when inserting entries into temporary pcr duplicates table.\n");
-    if ($rows) {
-        @to_delete = ();
-    }
-    else {
-        die
-            "Something went wrong inserting, but somehow wasn't caught!\n";
-    }
+    @to_delete = ();
 }
 
 # delete from rankdflank based on temptable entries
@@ -250,30 +194,26 @@ $dbh->begin_work();
 my $delfromtable = $dbh->do($query);
 $dbh->commit();
 
-# cleanup temp file
-if ( $run_conf{BACKEND} eq "mysql" ) {
-    unlink("$TEMPDIR/pduptemp_$DBSUFFIX.txt");
-}
 
-print "\n\nProcessing complete (pcr_dup.pl), deleted $deleted duplicates.\n";
+print "Processing complete (pcr_dup.pl), deleted $deleted duplicates.\n";
 @stats{qw( RANK_REMOVED_PCRDUP RANKFLANK_REMOVED_PCRDUP )}
     = ( $deleted, $deleted );
 
 # for accounting of pcr dups
-warn "\nMaking a list of pcr_dup removed...\n";
-if ( open( my $fh, ">$pcleanfolder/result/$DBSUFFIX.pcr_dup.txt" ) ) {
+print "Making a list of pcr_dup removed.\n";
+if ( open( my $fh, ">$out_folder/$DBSUFFIX.pcr_dup.txt" ) ) {
     $i = 0;
     for my $key ( sort keys %PENTRIES ) {
         $i++;
         print $fh "$i\t-" . $key . "\n";
     }
-    warn "PCR_DUP list complete with $i removed entries.\n";
+    print "PCR_DUP list complete with $i removed entries.\n";
     close($fh);
 }
 
 # first count the intersect
 $rrintersect = 0;
-$sth         = $dbh->prepare(
+$sth = $dbh->prepare(
     q{SELECT count(*) FROM rank
     INNER JOIN rankflank ON rank.refid=rankflank.refid AND rank.readid=rankflank.readid}
 ) or die "Couldn't prepare statement: " . $dbh->errstr;
@@ -283,20 +223,15 @@ $sth->finish();
 $stats{INTERSECT_RANK_AND_RANKFLANK} = $rrintersect;
 
 # now exclude ties, mark in map table and record the number
-warn "Updating BEST BEST BEST map entries...\n";
+print "Updating BEST BEST BEST map entries.\n";
 
 # clear all bbb entries
 $dbh->do("UPDATE map SET bbb=0;")
     or die "Couldn't do statement: " . $dbh->errstr;
 
 # clear all pduptemp entries
-$dbh->do( get_trunc_query( $run_conf{BACKEND}, "pduptemp" ) )
+$dbh->do( "DELETE FROM pduptemp" )
     or die "Couldn't do statement: " . $dbh->errstr;
-
-if ( $run_conf{BACKEND} eq "mysql" ) {
-    $dbh->do('ALTER TABLE pduptemp DISABLE KEYS;')
-        or die "Couldn't do statement: " . $dbh->errstr;
-}
 
 # clear all pduptemp entries
 $sth = $dbh->prepare(
@@ -309,11 +244,6 @@ $sth = $dbh->prepare(
 $dbh->begin_work();
 $sth->execute();
 $dbh->commit();
-
-if ( $run_conf{BACKEND} eq "mysql" ) {
-    $dbh->do('ALTER TABLE pduptemp ENABLE KEYS;')
-        or die "Couldn't do statement: " . $dbh->errstr;
-}
 
 $query = q{UPDATE map SET bbb=1
     WHERE EXISTS (
@@ -328,8 +258,8 @@ $dbh->commit();
 $stats{BBB_WITH_MAP_DUPS} = $i;
 
 # make a list of ties
-warn "Making a list of ties (references)...\n";
-if ( open( my $fh, ">$pcleanfolder/result/$DBSUFFIX.ties.txt" ) ) {
+print "Making a list of ties (references).\n";
+if ( open( my $fh, ">$out_folder/$DBSUFFIX.ties.txt" ) ) {
     my $read_dbh = get_dbh( { userefdb => 1, readonly => 1 } );
     $query = qq{SELECT map.refid, max(bbb) as mbb,
             (select head from refdb.fasta_ref_reps where rid=map.refid) as chr,
@@ -350,11 +280,11 @@ if ( open( my $fh, ">$pcleanfolder/result/$DBSUFFIX.ties.txt" ) ) {
     $sth->finish;
     close($fh);
 }
-warn "Ties list complete with $i removed references.\n";
+print "Ties list complete with $i removed references.\n";
 
 # make a list of ties
-warn "\nMaking a list of ties (entries)...\n";
-if ( open( my $fh, ">$pcleanfolder/result/$DBSUFFIX.ties_entries.txt" ) ) {
+print "Making a list of ties (entries).\n";
+if ( open( my $fh, ">$out_folder/$DBSUFFIX.ties_entries.txt" ) ) {
 
     $query = q{SELECT map.refid, map.readid,rank.ties,rankflank.ties
     FROM map
@@ -372,10 +302,10 @@ if ( open( my $fh, ">$pcleanfolder/result/$DBSUFFIX.ties_entries.txt" ) ) {
             . $data[2] . "\t"
             . $data[3] . "\n";
     }
-    $sth->finish;
+    $sth->finish();
     close($fh);
 }
-warn "Ties list complete with $i removed entries.\n";
+print "Ties list complete with $i removed entries.\n";
 
 # set old settings
 $dbh->do("PRAGMA foreign_keys = ON");
@@ -387,8 +317,8 @@ if ( $delfromtable != $deleted ) {
 }
 
 $dbh->disconnect();
-warn strftime( "\n\nend: %F %T\n\n", localtime );
 set_statistics( \%stats );
+print strftime( "\nEnd: %F %T\n\n", localtime );
 
 1;
 
@@ -399,27 +329,15 @@ sub fork_pcrdup {
         return 0;
     }
 
-    # wait for shared variables to unlock
-    while ($MYLOCK) { }
-
-    # lock shared vars
-    $MYLOCK = 1;
-
     # use a predefined number of files
     my $until = $files_processed + $files_to_process - 1;
     $until = $tarball_count - 1 if $until > ( $tarball_count - 1 );
-    warn 'Processing files '
-        . ( $files_processed + 1 ) . ' to '
-        . ( $until + 1 ) . "\n";
 
     #my $output_prefix = "$root/$files_processed-$until";
     my @file_slice = @indexfiles[ ($files_processed) .. ($until) ];
     my $file_slice_count = @file_slice;
     $files_processed += $file_slice_count;
     my $exstring;
-
-    # unlock shared vars
-    $MYLOCK = 0;
 
     defined( my $pid = fork )
         or die "Unable to fork: $!\n";
@@ -428,17 +346,10 @@ sub fork_pcrdup {
     if ( $pid == 0 ) {
 
         foreach (@file_slice) {
-
-            #warn "\t" . $_ . "\n";
-
             my $exstring
                 = "./pcr_dup.exe $indexfolder/${_} $indexfolder/${_}.pcr_dup 0 2 $KEEPPCRDUPS > /dev/null";
             system($exstring);
-
         }
-
-        #warn "\n";
-
         # child must never return
         exit 0;
 
@@ -450,4 +361,3 @@ sub fork_pcrdup {
 
     return 0;
 }
-

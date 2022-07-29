@@ -3,8 +3,8 @@ SET(PACKAGE_NAME VNTRseek)
 
 cmake_minimum_required(VERSION 3.0)
 # Set current VNTRseek version. Not user configurable
-SET(VNTRVer "2.0.0")
-project(VNTRseek VERSION 2.0.0 LANGUAGES C)
+SET(VNTRVer "2.0.1")
+project(VNTRseek VERSION 2.0.1 LANGUAGES C)
 # project(VNTRseek VERSION ${VNTRVer} LANGUAGES C)
 
 SET(InstallSuffix "vntrseek${VNTRVer}")
@@ -96,9 +96,9 @@ install(CODE "
     endif(EXISTS \"${CMAKE_INSTALL_PREFIX}/${InstallSuffix}/defaults.vs.cnf\")
 ")
 SET(MISC_FILES
-    HISTORY
-    COPYING CLUSTER
-    README.md RUNNING
+    HISTORY.md
+    COPYING
+    README.md RUNNING.md
     reduced_db.sql
     sqlite_schema.sql
     cpanfile

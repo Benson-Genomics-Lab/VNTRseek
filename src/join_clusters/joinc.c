@@ -172,9 +172,9 @@ int main( int argc, char **argv ) {
 
                 strcat( bigtempbuf, de->d_name );
 
-                printf( "\nreading %s...", bigtempbuf );
+                //printf( "\nreading %s...", bigtempbuf );
                 ccount = LoadClustersFromFile( bigtempbuf, NULL );
-                printf( "%d clusters\n", ccount );
+                //printf( "%d clusters\n", ccount );
                 totclusters += ccount;
             }
         }
@@ -182,7 +182,7 @@ int main( int argc, char **argv ) {
         closedir( d );
     }
 
-    // allocate cluster sturture
+    // allocate cluster stucture
     if ( 0 == totclusters )
         return 0;
 
@@ -234,9 +234,9 @@ int main( int argc, char **argv ) {
     /* load */
     for ( fl1 = FILE_LIST->head; fl1 != NULL; fl1 = fl1->next ) {
         char *strtmp = (char *) EasyListItem( fl1 );
-        printf( "\nprocessing %s...", strtmp );
+        //printf( "\nprocessing %s...", strtmp );
         ccount = LoadClustersFromFile( strtmp, CLIST );
-        printf( "%d clusters\n", ccount );
+        //printf( "%d clusters\n", ccount );
     }
 
     /* join clusters CHANGED Nov 10, 2010 because of directionality problem
@@ -245,7 +245,7 @@ int main( int argc, char **argv ) {
 
     for ( i = 0; i < totclusters; i++ ) {
 
-        printf( "\n%d %.2lf%%", i, i * 100 / (double) totclusters );
+        //printf( "\n%d %.2lf%%", i, i * 100 / (double) totclusters );
 
         LASTMERGED = NULL;
 
@@ -286,10 +286,10 @@ int main( int argc, char **argv ) {
                                 flip    = ( temp->negdirlist[k] !=
                                          CLIST[i].negdirlist[j] );
 
-                                if ( flip ) {
-                                    printf( "\nflipped c:%d (%d)!", i,
-                                      CLIST[i].negidlist[j] );
-                                }
+                                //if ( flip ) {
+                                //    printf( "\nflipped c:%d (%d)!", i,
+                                //      CLIST[i].negidlist[j] );
+                                //}
                             }
                         }
                     }
@@ -319,7 +319,7 @@ int main( int argc, char **argv ) {
     // exit(1);
 
     /* write output and double CHECK for dups */
-    printf( "\n\nWriting final cluster file..." );
+    printf( "Writing final cluster file...\n" );
     DestroySingleHash( HASHSEEN );
     HASHSEEN = CreateSingleHash( 2 * totclusters );
 
@@ -390,7 +390,7 @@ int main( int argc, char **argv ) {
 
     fclose( fpo );
 
-    printf( "\nTotal clusters read: %d, after join: %d, total refs(written) %d "
+    printf( "Total clusters read: %d, after join: %d, total refs(written) %d "
             "(%d),  total reads(written) %d (%d) maxdepth=%d\n",
       totclusters, finclusters, TotalRefs, TotalRefsWritten, TotalReads,
       TotalReadsWritten, maxdepth );

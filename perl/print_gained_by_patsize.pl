@@ -15,9 +15,8 @@ use File::Copy;
 
 my $MIN_SUPPORT_REQUIRED = 2;
 
-if (@ARGV<5) {
- print STDERR "\n\nprint_unclustered.pl: Enter database name, login and pass and MINPAT and MAXPAT!\n";
- exit 1;
+if (@ARGV < 5) {
+     die "\nprint_unclustered.pl: Enter database name, login and pass and MINPAT and MAXPAT!\n";
 }
 
 my $DBNAME = $ARGV[0];
