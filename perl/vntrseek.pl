@@ -773,6 +773,7 @@ if ( $STEP == 20 ) {
     system('./compress_reads.pl',
         $dbfile2,
         $opts{'REFERENCE'} . ".db",
+        File::Temp->newdir(),
         $opts{'NPROCESSES'});
 
     $dbh = DBI->connect("DBI:SQLite:dbname=$dbfile2");
