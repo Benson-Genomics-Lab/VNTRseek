@@ -200,7 +200,7 @@ my $MINPROFSCORE      = .85;
 my $MATCH    = 2;
 my $MISMATCH = 5;
 my $INDEL    = 7;
-my $MIN_PERIOD_REQUIRED = 1;    # anything with pattern less then this is discarded
+my $MIN_PERIOD_REQUIRED = 7;    # anything with pattern less then this is discarded
 
 my $TRF_EXECUTABLE = '@TRFBin@';
 my $TRF_PARAM

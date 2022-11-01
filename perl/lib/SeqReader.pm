@@ -398,16 +398,6 @@ sub run_trf {
         close $reads_fh;
     }
 
-    # KA: temporary
-    open my $discard_fh, ">", "$output_prefix.discarded";
-    for my $header (keys %$read_href) {
-        if ($read_href->{$header}) {
-            print $discard_fh "$header\t" . $read_href->{$header} . "\n";
-        }
-    }
-    close $discard_fh;
-    ## /KA
-
 
     # Get stats from indexhist file
     open my $fh, "<", "$output_prefix.indexhist";
