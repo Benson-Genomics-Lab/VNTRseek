@@ -12,5 +12,5 @@ The full documentation is located on the [wiki](https://github.com/yzhernand/VNT
 
 # Download
 
-The latest version of VNTRseek is 2.0.0. You can download it from the [Github repo](https://github.com/Benson-Genomics-Lab/VNTRseek/releases).
+The latest version of VNTRseek is 2.0.1. You can download it from the [Github repo](https://github.com/Benson-Genomics-Lab/VNTRseek/releases).
 An active (likely unstable) [branch for v2 series development](https://github.com/Benson-Genomics-Lab/VNTRseek/tree/v2.0_dev) is available for pull contributions.

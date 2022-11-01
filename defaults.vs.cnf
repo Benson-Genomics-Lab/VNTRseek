@@ -1,7 +1,7 @@
 # name of the output database
 # should be different for different input data sets
 # eg, data
-DBSUFFIX=
+RUN_NAME=
 
 # input data directory
 # (plain or gzipped fasta/fastq files)
@@ -17,11 +17,7 @@ REFERENCE=
 
 # output directory (must be writable and executable!)
 # eg, /output
-OUTPUT_ROOT=output
-
-# temp (scratch) directory (must be writable and executable!)
-# eg, /tmp
-TMPDIR=
+OUTPUT_DIR=output
 
 # server name, used for generating html links
 # eg, orca.bu.edu

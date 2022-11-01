@@ -1,3 +1,31 @@
+# Version 2.0.2 - Jul 27, 2022
+
+- added `CLEANUP` option to remove intermediates on success
+- changed `DBSUFFIX` to `RUN_NAME`
+- changed `OUTPUT_ROOT` to `OUTPUT_DIR`
+- redirected `run_edges.pl` and `run_flnkcomp.pl` output
+  - removed now unused `TMPDIR` option
+- removed unused `CLEAN` option
+- removed obselete `stats.pl`
+- consolidated error checks after subscript calls into subprocedure
+   - replaced `SetError` sub with `FlagError`
+- removed unused tmp paramater from `run_edges.pl`
+- hid (commented out) `map_dup.pl` output file `DBSUFFIX.map_dup.txt`
+- stopped `all.clusters` duplication in `insert_reads.pl`
+  - removed now unused rotatedfolder parameter
+- removed second run of `set_db_stats.pl`
+- fixed time stamps around all steps
+- raised `SeqReader` out of `VNTRseek` folder
+- revised all SQLite statements for consistency, readability, and efficiency
+- created step 20 for database reduction steps
+  - implemented read compression in perl
+- added [edlib](https://github.com/KylerAKA-BU/edlib) to build
+  - modified lots of files for this
+- changed how `SeqReader.pm` locates `seqtk
+- created `FinishStep` function to reduce code repetition
+- 
+
+---
 # Version 2.0.1 - Jul 26, 2022
 
 - fixed `NPROCESSES` internally so config is accurate
@@ -10,7 +38,7 @@
 - removed unnecssary entries in `%opts`/`%VSCNF_FILE`
   - `REFERENCE` extensions
   - `BACKEND`
-- resturctured parameter backwards compatibility
+- restructured parameter backwards compatibility
 - unified parameter default value handling
 - revised config validation messages
 - sorted parameter handling sections

@@ -6,7 +6,6 @@ use 5.010;
 use Cwd;
 use DBI;
 use File::Basename;
-use POSIX "strftime";
 use FindBin qw($RealBin);
 use lib "$RealBin/lib";
 use lib "$RealBin/local/lib/perl5";
@@ -16,19 +15,16 @@ use vutil
     qw(trim get_config get_dbh set_statistics gen_exec_array_cb vs_db_insert);
 use Data::Dumper;
 
-print strftime( "Start: %F %T\n\n", localtime );
-
 # Arguments
 my $argc = @ARGV;
-die "Usage: insert_reads.pl expects 5 arguments.\n"
-    unless $argc >= 5;
+die "Usage: insert_reads.pl expects 4 arguments.\n"
+    unless $argc >= 4;
 
 my $curdir          = getcwd();
 my $clusterfile     = $ARGV[0];
 my $indexfolder     = $ARGV[1];
-my $rotatedfolder   = $ARGV[2];
-my $strip454        = $ARGV[3];
-my $cnf             = $ARGV[4];
+my $strip454        = $ARGV[2];
+my $cnf             = $ARGV[3];
 
 my %run_conf = get_config("CONFIG", $cnf);
 my $dbh = get_dbh()
@@ -44,12 +40,10 @@ my $totalReads = 0;
 
 my $timestart = time();
 
-system("cp $clusterfile $rotatedfolder/allwithdups.clusters");
-
 # load the RHASH now with new values added
 # read clusters to see what values we will store (so we don't have to store all)
-print "Reading clusterfile allwithdups.clusters to hash clustered ids (with added rotated repeats).\n";
-open my $cluster_fh, "<", "$rotatedfolder/allwithdups.clusters" or die $!;
+print "Reading cluster file to hash clustered ids (with added rotated repeats).\n";
+open my $cluster_fh, "<", $clusterfile or die $!;
 $negcount = 0;
 while (<$cluster_fh>) {
     my @values = split( ',', $_ );
@@ -86,7 +80,7 @@ $dbh->do("PRAGMA foreign_keys = OFF");
 $dbh->do("PRAGMA synchronous = OFF");
 $dbh->do("PRAGMA journal_mode = TRUNCATE");
 
-# Insert all ref TRs from replnk file
+# Insert all ref TRs from index files
 my $sth = $dbh->prepare(
     qq{INSERT INTO
     replnk(rid,sid,first,last,patsize,copynum,pattern,profile,profilerc,profsize)
@@ -94,7 +88,7 @@ my $sth = $dbh->prepare(
 );
 
 $timestart = time();
-print "Reading index file and storing relevant entries in database.\n";
+print "Reading index files and storing relevant entries in database.\n";
 
 # KA: More file greps
 opendir( DIR, $indexfolder );
@@ -310,8 +304,6 @@ else {
 }
 
 print "Processing complete (insert_reads.pl).\n";
-
-print strftime( "\nEnd: %F %T\n\n", localtime );
 
 1;
 

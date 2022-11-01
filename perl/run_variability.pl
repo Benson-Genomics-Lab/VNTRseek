@@ -5,7 +5,6 @@ use warnings;
 use Cwd;
 use DBI;
 use List::Util qw[min max];
-use POSIX "strftime";
 use FindBin;
 use lib "$FindBin::RealBin/lib";
 use vutil
@@ -14,14 +13,6 @@ use vutil
 if ( $ENV{DEBUG} ) {
     use Data::Dumper;
 }
-
-sub nowhitespace($) {
-    my $string = shift;
-    $string =~ s/\s+//g;
-    return $string;
-}
-
-print strftime( "Start: %F %T\n\n", localtime );
 
 # Arguments
 my $argc = @ARGV;
@@ -38,13 +29,9 @@ my $dbh = get_dbh()
     or die "Could not connect to database: $DBI::errstr";
 
 my $RECORDS_PER_INFILE_INSERT = 100000;
-
 my $updatedClustersCount = 0;
-my $updatedRefsCount     = 0;
 
-my ( $sth, $sth1, $sth2, $sth3, $sth4, $query );
-my $TEMPFILE;
-my $TEMP_CLNK;
+my ( $sth, $sth1, $sth2, $sth3, $sth4);
 
 # change settings to speedup updates and inserts
 $dbh->do("PRAGMA foreign_keys = OFF");
@@ -52,59 +39,64 @@ $dbh->do("PRAGMA foreign_keys = OFF");
 $dbh->begin_work();
 
 # update reserved field on entire table
-$dbh->do('UPDATE clusterlnk SET reserved=0,reserved2=0;')
+$dbh->do('UPDATE clusterlnk SET reserved=0, reserved2=0;')
     or die "Couldn't do statement: " . $dbh->errstr;
-$dbh->do('UPDATE map SET reserved=0,reserved2=0;')
+$dbh->do('UPDATE map SET reserved=0, reserved2=0;')
     or die "Couldn't do statement: " . $dbh->errstr;
 $dbh->do( "DELETE FROM vntr_support" )
     or die "Couldn't do statement: " . $dbh->errstr;
 
-$dbh->do(
-    q{CREATE TEMPORARY TABLE mapr (
+$dbh->do(q{
+    CREATE TEMPORARY TABLE mapr (
       `refid` INT(11) NOT NULL,
       `readid` INT(11) NOT NULL,
-      PRIMARY KEY (refid,readid))}
-);
+      PRIMARY KEY (refid,readid))});
 
 # create temp table for clusterlnk table updates and update clusterlnk table
-$dbh->do(
-    q{CREATE TEMPORARY TABLE ctrlnk (
+$dbh->do(q{
+    CREATE TEMPORARY TABLE ctrlnk (
       `clusterid` INT(11) NOT NULL,
       `repeatid` INT(11) NOT NULL,
       `change` INT(11) NOT NULL,
-      PRIMARY KEY (clusterid,repeatid))}
-);
-$dbh->commit;
+      PRIMARY KEY (clusterid,repeatid))});
+
+$dbh->commit();
 
 # prepare statments
 my $read_dbh = get_dbh( { userefdb => 1, readonly => 1 } );
-$sth = $read_dbh->prepare(
-    q{SELECT rid,flankleft,sequence,flankright,pattern,copynum,(lastindex-firstindex+1) AS arlen
-  FROM refdb.fasta_ref_reps
-  WHERE rid = ?}
-) or die "Couldn't prepare statement: " . $dbh->errstr;
-$sth1 = $read_dbh->prepare(
-    q{SELECT rid, dna, first, last, pattern, copynum
-  FROM fasta_reads INNER JOIN replnk ON fasta_reads.sid=replnk.sid
-  WHERE rid = ?}
-) or die "Couldn't prepare statement: " . $dbh->errstr;
+
+$sth = $read_dbh->prepare(q{
+    SELECT rid, flankleft, sequence, flankright,
+      pattern, copynum, (lastindex-firstindex+1) AS arlen
+    FROM refdb.fasta_ref_reps
+    WHERE rid = ?})
+    or die "Couldn't prepare statement: " . $dbh->errstr;
+
+$sth1 = $read_dbh->prepare(q{
+    SELECT rid, dna, first, last, pattern, copynum
+    FROM fasta_reads
+      JOIN replnk ON fasta_reads.sid = replnk.sid
+    WHERE rid = ?})
+    or die "Couldn't prepare statement: " . $dbh->errstr;
 
 $sth2 = $dbh->prepare(q{INSERT INTO ctrlnk VALUES(?, ?, ?)})
     or die "Couldn't prepare statement: " . $dbh->errstr;
+
 $sth3 = $dbh->prepare(q{INSERT INTO mapr VALUES(?, ?)})
     or die "Couldn't prepare statement: " . $dbh->errstr;
-$sth4 = $read_dbh->prepare(
-    q{SELECT map.refid, map.readid from clusterlnk
-  INNER JOIN map ON map.refid=-clusterlnk.repeatid
-  WHERE map.bbb=1 AND clusterlnk.clusterid=?
-  ORDER BY map.readid,map.refid}
-) or die "Couldn't prepare statement: " . $dbh->errstr;
+
+$sth4 = $read_dbh->prepare(q{
+    SELECT map.refid, map.readid
+    FROM clusterlnk
+      JOIN map ON map.refid = -clusterlnk.repeatid
+    WHERE map.bbb=1 AND clusterlnk.clusterid=?
+    ORDER BY map.readid, map.refid})
+    or die "Couldn't prepare statement: " . $dbh->errstr;
 
 my ( %VNTR_REF, %VNTR_COPIES, %VNTR_COPIESFLOAT, %VNTR_SUPPORT,
     %VNTR_SAMEASREF, %VNTR_REPRESENTATIVE );
 
 my $SUPPORT_INCREMENTED = 0;
-
 my $processed    = 0;
 my $cl_processed = 0;
 
@@ -119,9 +111,6 @@ while (<$fh>) {
     my %REFCOPIES   = ();
     my %ASKLENGTH   = ();
     my %READCOPIES  = ();
-    my $repeatcount = 0;
-    my $refcount    = 0;
-    my $readcount   = 0;
 
     my $readlen;
     my $first;
@@ -136,11 +125,8 @@ while (<$fh>) {
 
         $val =~ s/[\'\"]//g;
 
-        $repeatcount++;
-
         # go though all refs for each read
         if ( $val <= 0 ) {
-            $refcount++;
             #$val = ($val<0)? -$val : $val; # ids are positive in database
 
             $sth->execute( -$val )    # Execute the query
@@ -156,7 +142,6 @@ while (<$fh>) {
             $REFCOPIES{$val} = $data[5];
         }
         else {
-            $readcount++;
 
             $sth1->execute($val)    # Execute the query
                 or die "Couldn't execute statement: " . $sth1->errstr;
@@ -194,8 +179,6 @@ while (<$fh>) {
 
         $REFHASH{$refid} = 1;
 
-        # warn "\n\n$refid | $readid \n"; creates over 10 million lines in the output!
-
         if ( $readid != $readidold ) {
             $READVECTOR{$readid} = ();
         }
@@ -209,16 +192,15 @@ while (<$fh>) {
 
         #if ($ASKLENGTH{$refid} <= $readlen) {
         push( @{ $READVECTOR{$readid} }, $refid );
-
         #}
 
         $readidold = $readid;
     }
-    $sth4->finish;
+    $sth4->finish();
 
     # insert database records (cluster table)
-    my $vYes = VNTR_YES_NO( \$TEMPFILE, \$TEMP_CLNK, \%REFCOPIES, \%READCOPIES,
-                            \%READVECTOR, \%REFHASH, $clusters_processed );
+    my $vYes = VNTR_YES_NO( \%REFCOPIES, \%READCOPIES, \%READVECTOR,
+                            \%REFHASH, $clusters_processed );
 
     $updatedClustersCount += $vYes;
 }
@@ -230,51 +212,42 @@ close($fh);
 $sth->finish();
 $sth1->finish();
 
-# $dbh->begin_work;
-my $updCLNKfromfile = $dbh->do(
-    q{UPDATE clusterlnk SET reserved=(
-    SELECT change FROM ctrlnk t2
-    WHERE clusterlnk.clusterid = t2.clusterid
-        AND clusterlnk.repeatid=t2.repeatid
+my $updCLNKfromfile = $dbh->do(q{
+    UPDATE clusterlnk SET reserved = (
+        SELECT change
+        FROM ctrlnk t2
+        WHERE clusterlnk.clusterid = t2.clusterid
+          AND clusterlnk.repeatid = t2.repeatid
     )
-    WHERE EXISTS (SELECT * FROM ctrlnk t2
-    WHERE clusterlnk.clusterid = t2.clusterid
-        AND clusterlnk.repeatid=t2.repeatid)}
-);
+    WHERE EXISTS (
+        SELECT *
+        FROM ctrlnk t2
+        WHERE clusterlnk.clusterid = t2.clusterid
+          AND clusterlnk.repeatid = t2.repeatid)});
 
 # update map based on temp table
-my $updfromtable = $dbh->do(
-    q{UPDATE map SET reserved=1
+my $updfromtable = $dbh->do(q{
+    UPDATE map SET reserved = 1
     WHERE EXISTS (
-    SELECT * FROM mapr t2
-    WHERE map.refid = t2.refid
-        AND map.readid = t2.readid)}
-);
+        SELECT * FROM mapr t2
+        WHERE map.refid = t2.refid
+          AND map.readid = t2.readid)});
 
-# $dbh->commit;
-
-# write SUPPORT info to temp files to be loaded into vntr_support
-
-# ($updfromtable) = $dbh->selectrow_array(q{SELECT COUNT(*) FROM map WHERE reserved=1});
-$query = q{INSERT INTO vntr_support VALUES(?, ?, ?, ?, ?, ?)};
-$sth   = $dbh->prepare($query);
+$sth = $dbh->prepare(q{INSERT INTO vntr_support VALUES(?, ?, ?, ?, ?, ?)});
 
 my $supcounter = 0;
 my $supInsert  = 0;
 my @vntrs_supported;
 foreach my $key ( keys %VNTR_REF ) {
     $supcounter++;
-    push @vntrs_supported,
-        [
+    push @vntrs_supported, [
         $VNTR_REF{$key},
         $VNTR_COPIES{$key},
         $VNTR_SAMEASREF{$key},
         $VNTR_SUPPORT{$key},
         $VNTR_COPIESFLOAT{$key},
-        ( exists $VNTR_REPRESENTATIVE{$key} )
-        ? $VNTR_REPRESENTATIVE{$key}
-        : undef
-        ];
+        ( exists $VNTR_REPRESENTATIVE{$key} ) ?
+          $VNTR_REPRESENTATIVE{$key} : undef];
     if ( @vntrs_supported % $RECORDS_PER_INFILE_INSERT == 0 ) {
         my $cb = gen_exec_array_cb( \@vntrs_supported );
         my $rows
@@ -294,27 +267,26 @@ if (@vntrs_supported) {
 }
 
 $dbh->begin_work();
-$dbh->do(
-    q{CREATE TEMPORARY TABLE ctr (
-    `clusterid` INT(11) NOT NULL PRIMARY KEY,
-    `varbl` INT(11) NOT NULL DEFAULT 0
-    )}
-);
+$dbh->do(q{
+    CREATE TEMPORARY TABLE ctr (
+      `clusterid` INT(11) NOT NULL PRIMARY KEY,
+      `varbl` INT(11) NOT NULL DEFAULT 0)});
 
-my $InsClusToFile = $dbh->do(
-    q{INSERT INTO ctr SELECT clusterid, count(*) as vrefs
+my $InsClusToFile = $dbh->do(q{
+    INSERT INTO ctr
+    SELECT clusterid, count(*) as vrefs
     FROM clusterlnk
-    WHERE reserved>0
+    WHERE reserved > 0
     GROUP by clusterid
-    ORDER BY vrefs DESC}
-);
+    ORDER BY vrefs DESC});
 
-my $UpdClusFromFile = $dbh->do(
-    q{UPDATE OR IGNORE clusters
-    SET variability=(SELECT varbl FROM ctr t2
-    WHERE clusters.cid == t2.clusterid)}
-);
-$dbh->commit;
+my $UpdClusFromFile = $dbh->do(q{
+    UPDATE OR IGNORE clusters
+    SET variability = (
+        SELECT varbl
+        FROM ctr t2
+        WHERE clusters.cid == t2.clusterid)});
+$dbh->commit();
 
 # set old settings
 $dbh->do("PRAGMA foreign_keys = ON");
@@ -341,13 +313,10 @@ if ( $UpdClusFromFile != $InsClusToFile ) {
 print "Processing complete -- processed $clusters_processed cluster(s),"
     . " support entries created = $supInsert.\n";
 
-set_statistics(
-    {   CLUST_NUMBER_OF_REFS_WITH_PREDICTED_VNTR     => $updCLNKfromfile,
-        CLUST_NUMBER_OF_CLUSTERS_WITH_PREDICTED_VNTR => $updatedClustersCount
-    }
-);
-
-print strftime( "\nEnd: %F %T\n\n", localtime );
+set_statistics({
+    CLUST_NUMBER_OF_REFS_WITH_PREDICTED_VNTR     => $updCLNKfromfile,
+    CLUST_NUMBER_OF_CLUSTERS_WITH_PREDICTED_VNTR => $updatedClustersCount
+});
 
 1;
 
@@ -400,11 +369,8 @@ sub add_zero_support {
 }
 
 # this is a function that detects if reads have (somewhat) different number of copy numbers then reference(s)
-# TODO Rewrite signature for this function: we'll no longer use mapr_fh and clnk_fh
 sub VNTR_YES_NO {
 
-    my $mapr_fh  = ${ shift() };
-    my $clnk_fh  = ${ shift() };
     my %refs     = %{ shift() };
     my %reads    = %{ shift() };
     my %readhash = %{ shift() };
@@ -533,3 +499,8 @@ sub VNTR_YES_NO {
 }    # end of func
 
 
+sub nowhitespace {
+    my $string = shift;
+    $string =~ s/\s+//g;
+    return $string;
+}

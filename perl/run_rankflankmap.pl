@@ -4,17 +4,13 @@ use strict;
 use warnings;
 use Cwd;
 use DBI;
-use POSIX "strftime";
 use File::Basename;
 use Try::Tiny;
 use List::Util qw[min max];
 
 use FindBin;
 use lib "$FindBin::RealBin/lib";
-use vutil
-    qw(get_config get_dbh set_statistics gen_exec_array_cb vs_db_insert);
-
-print strftime( "Start: %F %T\n\n", localtime );
+use vutil qw(get_config get_dbh set_statistics gen_exec_array_cb vs_db_insert);
 
 # Arguments
 my $argc = @ARGV;
@@ -41,11 +37,9 @@ my $sth1;
 my $map_insert_sth;
 my $rankflank_insert_sth;
 
-#goto AAA;
 # disable indices
 $dbh->do("PRAGMA foreign_keys = OFF");
 $dbh->do("PRAGMA synchronous = OFF");
-$dbh->do("PRAGMA journal_mode = TRUNCATE");
 
 # clear map
 $dbh->begin_work();
@@ -85,10 +79,10 @@ foreach my $file (@allfiles) {
         $clusters_processed++;
 
         my $mfile = "$mapdir/$file";
-        open MFILE, "<$mfile" or die $!;
+        open my $MFH, "<$mfile" or die $!;
 
         my %READVECTOR = ();
-        while (<MFILE>) {
+        while (<$MFH>) {
             chomp;
             my @mfields = split( '\t', $_ );
             my $msize   = scalar @mfields;
@@ -147,16 +141,12 @@ foreach my $file (@allfiles) {
                     my @ranks = split( ',', $bestref );
                     my $ties  = scalar(@ranks) - 1;
                     foreach my $rstr (@ranks) {
-
                         $j++;
 
-                        push @rankflank_rows,
-                            [ $rstr, $readid, $bestscore, $ties ];
+                        push @rankflank_rows, [ $rstr, $readid, $bestscore, $ties ];
                         if ( @rankflank_rows % $RECORDS_PER_INFILE_INSERT == 0 ) {
                             my $cb = gen_exec_array_cb( \@rankflank_rows );
-                            my $rows
-                                = vs_db_insert( $dbh, $rankflank_insert_sth,
-                                $cb,
+                            my $rows = vs_db_insert( $dbh, $rankflank_insert_sth, $cb,
                                 "Error inserting into rankflank table." );
                             $uploadedrank += $rows;
                             @rankflank_rows = ();
@@ -178,6 +168,7 @@ if (@map_rows) {
     $uploadedmap += $rows;
     @map_rows = ();
 }
+$map_insert_sth->finish();
 
 if ( $uploadedmap != $k ) {
     die "Uploaded number of map entries($uploadedmap) not equal to"
@@ -191,12 +182,12 @@ if (@rankflank_rows) {
     $uploadedrank += $rows;
     @rankflank_rows = ();
 }
+$rankflank_insert_sth->finish();
 
 if ( $uploadedrank != $j ) {
     die "Uploaded number of rankflank entries($uploadedrank) not equal to"
         . "the number of uploaded counter ($j), aborting!\n";
 }
-AAA:
 
 # create temp table for deletions
 $dbh->do(
@@ -241,6 +232,7 @@ while ( my @data = $sth->fetchrow_array() ) {
     $oldscore = $data[3];
     $i++;
 }
+$sth->finish();
 
 if (@rows) {
     my $cb  = gen_exec_array_cb( \@rows );
@@ -284,6 +276,7 @@ while ( my @data = $sth->fetchrow_array() ) {
     $oldseq  = $data[2];
     $i++;
 }
+$sth->finish();
 
 if (@rows) {
     my $cb  = gen_exec_array_cb( \@rows );
@@ -292,6 +285,7 @@ if (@rows) {
     $count += $num;
     @rows = ();
 }
+$sth1->finish();
 
 print "Prunning complete. Pruned $count rankflank records.\n";
 
@@ -304,38 +298,25 @@ $query = qq{
         WHERE rankflank.refid = t2.refid
             AND rankflank.readid = t2.readid
     )};
-$dbh->begin_work;
 $delfromtable = $dbh->do($query);
-$dbh->commit;
-
-# $sth->finish;
 
 # set old settings
 $dbh->do("PRAGMA foreign_keys = ON");
 $dbh->do("PRAGMA synchronous = ON");
+$dbh->disconnect();
 
 if ( $delfromtable != $count ) {
     die "Deleted number of entries($delfromtable) not equal to"
         . " the number of deleted counter ($count), aborting!";
 }
 
-$dbh->disconnect();
-set_statistics(
-    {   RANKFLANK_EDGES_INSERTED  => $j,
-        RANKFLANK_REMOVED_SAMEREF => $count,
-        RANKFLANK_REMOVED_SAMESEQ => $count
-    }
-);
+set_statistics({
+    RANKFLANK_EDGES_INSERTED  => $j,
+    RANKFLANK_REMOVED_SAMEREF => $count,
+    RANKFLANK_REMOVED_SAMESEQ => $count
+});
 
-print "Processing complete -- processed $clusters_processed cluster(s)."
-    . "\n  Deleted from rankflank using temptable: $delfromtable\n";
-
-print strftime( "\nEnd: %F %T\n\n", localtime );
+print "Processing complete -- processed $clusters_processed cluster(s).\n"
+    . "  Deleted from rankflank using temptable: $delfromtable\n";
 
 1;
-
-sub nowhitespace($) {
-    my $string = shift;
-    $string =~ s/\s+//g;
-    return $string;
-}

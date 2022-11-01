@@ -5,18 +5,14 @@ use strict;
 use warnings;
 use Cwd;
 use DBI;
-use POSIX "strftime";
 use File::Basename;
-use File::Path "make_path";
 use FindBin;
 use lib "$FindBin::RealBin/lib";
 use vutil qw(get_config get_dbh set_statistics);
 
-print strftime( "Start: %F %T\n\n", localtime );
-
 # Arguments
-die "Usage: run_edges.pl expects 7 arguments.\n"
-    unless scalar @ARGV >= 7;
+die "Usage: run_edges.pl expects 6 arguments.\n"
+    unless scalar @ARGV >= 6;
 
 my $curdir       = getcwd();
 my $inputfile    = $ARGV[0];
@@ -25,7 +21,6 @@ my $cnf          = $ARGV[2];
 my $MINPROFSCORE = $ARGV[3];
 my $cpucount     = $ARGV[4];
 my $PROCLU       = "$curdir/$ARGV[5]";
-my $tmp          = $ARGV[6];
 
 
 # load config, prep SQL driver, and set constants
@@ -37,23 +32,23 @@ my $PROCLU_PARAM = "$curdir/eucledian.dst 70 0 0";
 my $files_to_process = 1000;
 
 $dbh->do("PRAGMA foreign_keys = OFF");
-$dbh->{AutoCommit} = 0;
+$dbh->do("PRAGMA synchronous = OFF");
 
 
 # gather reference entries
 my %LHASH = ();
 open(my $input_fh, "<$inputfile" . ".leb36")
     or die "\nCannot open file '$inputfile'!\n";
-while (<$input_fh>) {                               # read file into list
+while (<$input_fh>) {     # read file into list
     if (/^(\d+)/) {
-        $LHASH{-$1} = $_; # note sign inversion
+        $LHASH{-$1} = $_; # note sign inversion, newlines not stripped!
     }
 }
 close($input_fh);
 
 
 # create map for generating reference leb files.
-my $query = qq{
+my $query = q{
     SELECT clusterid, GROUP_CONCAT(repeatid, " ")
     FROM clusterlnk
         LEFT OUTER JOIN replnk ON clusterlnk.repeatid=replnk.rid
@@ -63,18 +58,20 @@ my $sth = $dbh->prepare($query);
 $sth->execute();
 
 my $clusterid;
-my $repid;
+my $repids;
 my %refmap = ();
-while (($clusterid, $repid) = $sth->fetchrow_array()) {
-    $refmap{$clusterid} = $repid;
+while (($clusterid, $repids) = $sth->fetchrow_array()) {
+    $refmap{$clusterid} = $repids;
 }
 $sth->finish();
 print "Reference map loaded.\n";
 
 
 # create map for generating edges files
-$query = qq{
-    SELECT clusterid, GROUP_CONCAT(datum, "\n")
+# x'0a' is a newline character
+# sql does not convert \n
+$query = q{
+    SELECT clusterid, GROUP_CONCAT(datum, x'0a')
     FROM (SELECT clusterid, ("-" || refid || "," || readid) as datum
           FROM map, clusterlnk
           WHERE -refid=clusterlnk.repeatid
@@ -83,24 +80,27 @@ $query = qq{
 $sth = $dbh->prepare($query);
 $sth->execute();
 
-my $datum;
+my $text;
 my %edgemap = ();
-while (($clusterid, $datum) = $sth->fetchrow_array()) {
-    $edgemap{$clusterid} = $datum;
+while (($clusterid, $text) = $sth->fetchrow_array()) {
+    $edgemap{$clusterid} = $text;
 }
 $sth->finish();
 print "Edge map loaded.\n";
 
 
-# prep sample lebs pipe
-$query = qq{
-    SELECT clusterid, GROUP_CONCAT(datum, "\n")
-    FROM (SELECT clusterid, printf("%s %s %.2lf %d %d %s %s 0 0 0 0 |",
+# prep sample lebs
+# x'0a' is a newline character
+# sql does not convert \n
+$query = q{
+    SELECT clusterid, GROUP_CONCAT(datum, x'0a')
+    FROM (SELECT clusterid, printf("%d %s %.2lf %d %d %s %s 0 0 0 0 |",
                                    repeatid, patsize, copynum,
                                    length(profile)/2, length(profilerc)/2,
                                    profile, profilerc) as datum
-         FROM clusterlnk INNER JOIN replnk ON clusterlnk.repeatid=replnk.rid
-             AND clusterlnk.repeatid IN (SELECT DISTINCT readid FROM map)
+         FROM clusterlnk
+             JOIN replnk ON clusterlnk.repeatid=replnk.rid
+         WHERE clusterlnk.repeatid IN (SELECT DISTINCT readid FROM map)
          ORDER BY clusterid)
     GROUP BY clusterid};
 $sth = $dbh->prepare($query);
@@ -146,7 +146,6 @@ while ((my $pid = wait) != -1) {
 $sth->finish();
 $coconut++; # since we used 0 indexing
 print "Processing complete -- processed $clusters_processed cluster(s).\n";
-print strftime("\nMid proclu: %F %T\n\n", localtime);
 chdir($curdir);
 
 
@@ -164,7 +163,7 @@ $dbh->do($query)
 
 
 # populate clustemp table and collect read scores while we're at it.
-$sth = $dbh->prepare(q{INSERT INTO clustemp VALUES(?, ?)})
+$sth = $dbh->prepare('INSERT INTO clustemp VALUES(?, ?)')
     or die "Couldn't prepare statement: " . $dbh->errstr;
 my %RHASH = ();
 my %SHASH = ();
@@ -191,13 +190,15 @@ for (my $c = 0; $c < $coconut; $c++) {
     while (my $line = <$outfh>) {
         my ($clusterid, $score) = split / /, $line;
 
-        $sth->execute($clusterid, $score);
+        $sth->execute($clusterid, $score)
+            or die "Error inserting $clusterid into clustemp table";
         $pcdupd++;
     }
     close $outfh;
+
+    unlink "$folder/scores.$c.txt", "$folder/aves.$c.txt";
 }
 $sth->finish();
-$dbh->commit();
 
 
 # do update
@@ -227,6 +228,7 @@ $query = q{INSERT INTO rank VALUES(?, ?, ?, ?, "'")};
 $sth = $dbh->prepare($query)
     or die "Couldn't prepare statement: " . $dbh->errstr;
 
+$dbh->begin_work();
 my $nreads = 0;
 my $rankins = 0;
 while (my ($key, $value) = each(%RHASH)) {
@@ -237,8 +239,9 @@ while (my ($key, $value) = each(%RHASH)) {
     if ($ENV{DEBUG}) {
         warn "$key => $SHASH{$key}; $value, ties: $ties\n";
     }
-    foreach my $ps (@pieces) {
-        $sth->execute($ps, $key, $SHASH{$key}, $ties);
+    for my $ps (@pieces) {
+        $sth->execute($ps, $key, $SHASH{$key}, $ties)
+            or die "Error inserting ($ps, $key) into rank table";
         $rankins++;
     }
 }
@@ -249,11 +252,11 @@ print "Inserted $rankins rank records for $nreads reads.\n";
 
 # create temp table for deletions
 $query = q{
-CREATE TEMPORARY TABLE ranktemp (
-    `refid` INTEGER NOT NULL,
-    `readid` INTEGER NOT NULL,
-    PRIMARY KEY (refid, readid)
-)};
+    CREATE TEMPORARY TABLE ranktemp (
+        `refid` INTEGER NOT NULL,
+        `readid` INTEGER NOT NULL,
+        PRIMARY KEY (refid, readid)
+    )};
 $dbh->do($query)
     or die "Couldn't do statement: " . $dbh->errstr;
 my $sth2  = $dbh->prepare(q{INSERT INTO ranktemp VALUES(?, ?)});
@@ -276,7 +279,8 @@ my $oldscore = -1.0;
 while (my @data = $sth->fetchrow_array()) {
     if ($data[1] == $oldread && $data[3] != $oldscore) {
         # record old one (smaller) for deletion
-        $sth2->execute($oldref, $oldread);
+        $sth2->execute($oldref, $oldread)
+            or die "Error inserting ($oldref, $oldread) into ranktemp table";
         $count++;
     }
     $oldref   = $data[0];
@@ -284,7 +288,6 @@ while (my @data = $sth->fetchrow_array()) {
     $oldscore = $data[3];
 }
 $sth->finish();
-$dbh->commit();
 print "Prunning complete. Pruned $count rank records.\n";
 
 
@@ -314,7 +317,6 @@ while (my @data = $sth->fetchrow_array()) {
     $oldseq  = $data[2];
 }
 $sth->finish();
-$dbh->commit();
 print "Prunning complete. Pruned $count rank records.\n";
 
 
@@ -328,12 +330,13 @@ $query = qq{
     )};
 my $delfromtable = $dbh->do($query)
     or die "Couldn't do statement: " . $dbh->errstr;
-print "Dropped $delfromtable rankings.\n";
+print "Deleted from rank using temptable: $delfromtable.\n";
 
 
 # set old db settings
 $dbh->do("PRAGMA foreign_keys = ON");
-$dbh->{AutoCommit} = 1;
+$dbh->do("PRAGMA synchronous = ON");
+$dbh->disconnect();
 
 
 if ( $updfromtable != $pcdupd ) {
@@ -347,15 +350,11 @@ if ( $delfromtable != $count ) {
         " You might need to rerun from step 12.";
 }
 
-$dbh->disconnect();
 set_statistics({
     RANK_EDGES_OVERCUTOFF => $rankins,
     RANK_REMOVED_SAMEREF  => $count,
     RANK_REMOVED_SAMESEQ  => $count
 });
-
-print "Deleted from rank using temptable: $delfromtable\n";
-print strftime( "\nEnd: %F %T\n\n", localtime );
 
 1;
 
@@ -366,14 +365,15 @@ sub fork_proclu {
     my @clusterids = ();
     my @row;
     my $outfh;
+    my $datum;
     for (my $k = 0; $k < $files_to_process; $k++) {
-        @row = $sth->fetchrow_array();  # one row to one clusterid
-        if (scalar @row == 0) { last;} # empty list means no more rows, means no more clusters
+        @row = $sth->fetchrow_array(); # one row to one clusterid
+        if (@row == 0) { last;} # empty list means no more rows, means no more clusters
 
         ($clusterid, $datum) = @row;
-        push @clusterids, $clusterid;   # spool cluster ids for child to process
+        push @clusterids, $clusterid; # spool cluster ids for child to process
 
-        my $readfile = "reads.$clusterid.leb36";# output read data from sql handle to file
+        my $readfile = "reads.$clusterid.leb36"; # output read data from sql handle to file
         open $outfh, ">", $readfile or die "Cannot open file '$readfile'!\n";
         print $outfh $datum;
         close($outfh);
@@ -381,9 +381,8 @@ sub fork_proclu {
     }
 
     if (scalar @clusterids == 0) { return 0;} # none spooled means no more clusters in feed
-    # do we want to see intermediate # of files processed?
 
-    $coconut++; # only increment if we know we're going to fork i.e. it's the next line
+    $coconut++; # only increment if we know we're going to fork, vis it's the next line
     defined(my $pid = fork) or die "Unable to fork: $!\n";
     if ($pid != 0) { return $pid;} # ← parent, child ↓
 
@@ -392,18 +391,18 @@ sub fork_proclu {
     open(my $scoresfh, ">scores.$coconut.txt")
       or die "Couldn't open output scores.$coconut.text";
 
-    foreach $clusterid (@clusterids) {
+    for $clusterid (@clusterids) {
         # file names for proclu
         my $readfile = "reads.$clusterid.leb36";
-        my $reffile = "refs.$clusterid.leb36";
+        my $reffile  = "refs.$clusterid.leb36";
         my $edgefile = "reads.$clusterid.edgein";
 
         # generate reference file
         open ($outfh, ">", $reffile)
           or die "Cannot open file '$reffile'!\n";
-        foreach $repid ((split / /, $refmap{$clusterid})) {
+        for my $repid ((split / /, $refmap{$clusterid})) {
             #if (!exists $LHASH{$repid}) { die "Couldn't find repid $repid in reference map (LHASH).";}
-            print $outfh "-" . $LHASH{$repid};
+            print $outfh "-" . $LHASH{$repid}; # newlines not stripped during LHASH loading
         }
 
         # generate edges file
@@ -417,7 +416,12 @@ sub fork_proclu {
         my $proclu_string = "$PROCLU $readfile $reffile $PROCLU_PARAM $edgefile > /dev/null";
         system($proclu_string);
         if ($? == -1) { die "Proclu failed on cluster $clusterid: $!\n";}
-        else { my $rc = ($? >> 8);} # I don't think this is used
+        else {
+            my $rc = ($? >> 8);
+            if ( 0 != $rc ) {
+                die "Proclu returned error code $rc: $?\n";
+            }
+        } # I don't think this is used
 
         # add output to intermediate files.
         open($outfh, "<", "$reffile.edges")
@@ -438,7 +442,7 @@ sub fork_proclu {
             }
         }
 
-        foreach $repid (keys %rHASH) {
+        for my $repid (keys %rHASH) {
             print $scoresfh "$repid $rHASH{$repid} $sHASH{$repid}\n";
         }
 

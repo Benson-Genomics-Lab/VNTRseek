@@ -23,11 +23,27 @@ ExternalProject_Add(seqtk
   SOURCE_DIR        ${CMAKE_SOURCE_DIR}/src/seqtk
   BUILD_IN_SOURCE   1
   CONFIGURE_COMMAND ""
-  INSTALL_DIR		    "${CMAKE_INSTALL_PREFIX}/${InstallSuffix}"
+  INSTALL_DIR       "${CMAKE_INSTALL_PREFIX}/${InstallSuffix}"
   INSTALL_COMMAND   ""
 )
 ExternalProject_Get_Property(seqtk source_dir)
 install(PROGRAMS ${source_dir}/seqtk
+	COMPONENT RUNTIME
+	DESTINATION ${InstallSuffix}
+)
+
+# edlib
+# update the hash in GIT_TAG with each new release
+ExternalProject_Add(edlib
+  GIT_REPOSITORY    https://github.com/KylerAKA-BU/edlib.git
+  GIT_TAG           5776bf1cee2cd96ee3f7a60d3b0d759b0630d6f9
+  SOURCE_DIR        ${CMAKE_SOURCE_DIR}/src/edlib
+  BUILD_IN_SOURCE   1
+  INSTALL_DIR       "${CMAKE_INSTALL_PREFIX}/${InstallSuffix}"
+  INSTALL_COMMAND   ""
+)
+ExternalProject_Get_Property(edlib source_dir)
+install(PROGRAMS ${source_dir}/bin/edlib-align
 	COMPONENT RUNTIME
 	DESTINATION ${InstallSuffix}
 )

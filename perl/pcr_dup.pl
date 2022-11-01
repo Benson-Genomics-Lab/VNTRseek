@@ -6,17 +6,12 @@ use strict;
 use warnings;
 use Cwd;
 use DBI;
-use List::Util qw(min max);
-use POSIX "strftime";
-use FindBin;
 use File::Basename;
+use List::Util qw(min max);
 
+use FindBin;
 use lib "$FindBin::RealBin/lib";
-use vutil
-    qw(get_config get_dbh set_statistics gen_exec_array_cb);
-
-
-print strftime( "Start: %F %T\n\n", localtime );
+use vutil qw(get_config get_dbh set_statistics gen_exec_array_cb);
 
 my $argc = @ARGV;
 die "Usage: pcr_dup.pl expects 6 arguments.\n"
@@ -25,7 +20,7 @@ die "Usage: pcr_dup.pl expects 6 arguments.\n"
 my $curdir       = getcwd();
 my $indexfolder  = $ARGV[0];
 my $out_folder   = $ARGV[1];
-my $DBSUFFIX     = $ARGV[2];
+my $RUN_NAME     = $ARGV[2];
 my $cnf          = $ARGV[3];
 my $cpucount     = $ARGV[4];
 my $KEEPPCRDUPS  = $ARGV[5];
@@ -44,64 +39,53 @@ my %p;                         # associates forked pids with output pipe pids
 print "Reading: $indexfolder\n";
 
 opendir( my $dir, $indexfolder );
-my @indexfiles = grep( /\.(?:seq)$/, readdir($dir) );
+my @indexfiles = grep( /\.(?:seq)$/, readdir($dir) ); # KA: grep grep grep
 closedir($dir);
 
-my $tarball_count = @indexfiles;
-print "$tarball_count supported files found in $indexfolder\n";
-
-#die "Exiting\n" if $tarball_count == 0;
-$files_to_process = $tarball_count if $files_to_process > $tarball_count;
+my $numfiles = @indexfiles;
+print "$numfiles supported files found in $indexfolder\n";
+$files_to_process = $numfiles if $files_to_process > $numfiles;
 
 # fork as many new processes as there are CPUs
 for ( my $i = 0; $i < $cpucount; $i++ ) { $p{ fork_pcrdup() } = 1 }
 
 # wait for processes to finish and then fork new ones
 while ( ( my $pid = wait ) != -1 ) {
-    if ( $p{$pid} ) {
+    die "Unrelated process $pid finished?\n" unless $p{$pid};
 
-        # one instance has finished processing -- start a new one
-        delete $p{$pid};
-        $p{ fork_pcrdup() } = 1;
-    }
-    else {
-        die "************ Process $pid finished (not in hash)\n";
-    }
+    # one instance has finished processing -- start a new one
+    delete $p{$pid};
+    $p{ fork_pcrdup() } = 1;
 }
-
 print "Processing complete -- processed $files_processed cluster(s).\n";
+
 
 # load results
 print "Reading: $indexfolder\n";
 
 # first count the intersect before pcr dup
-my $rrintersect = 0;
-my $sth         = $dbh->prepare(
-    q{SELECT count(*)
-    FROM rank INNER JOIN
-        rankflank ON rank.refid=rankflank.refid AND rank.readid=rankflank.readid}
-) or die "Couldn't prepare statement: " . $dbh->errstr;
+my $sth = $dbh->prepare(q{SELECT count(*)
+    FROM rank JOIN rankflank using(refid, readid)})
+    or die "Couldn't prepare statement: " . $dbh->errstr;
 $sth->execute() or die "Cannot execute: " . $sth->errstr();
-($rrintersect) = $sth->fetchrow_array();
+($stats{INTERSECT_RANK_AND_RANKFLANK_BEFORE_PCR}) = $sth->fetchrow_array();
 $sth->finish();
-$stats{INTERSECT_RANK_AND_RANKFLANK_BEFORE_PCR} = $rrintersect;
 
 # deleteing PCR DUPS in database
 my %PENTRIES = ();
 
 # create temp table for updates
-my $query = q{CREATE TEMPORARY TABLE pduptemp (
+my $query = q{
+  CREATE TEMPORARY TABLE pduptemp (
     `refid` INT(11) NOT NULL,
     `readid` INT(11) NOT NULL,
-    PRIMARY KEY (refid,readid)
-    )};
-
+    PRIMARY KEY (refid,readid))};
 $dbh->do($query)
     or die "Couldn't do statement: " . $dbh->errstr;
+$sth = $dbh->prepare(q{INSERT INTO pduptemp VALUES (?, ?)});
 
 $dbh->do("PRAGMA foreign_keys = OFF");
 $dbh->do("PRAGMA synchronous = OFF");
-$sth = $dbh->prepare(q{INSERT INTO pduptemp VALUES (?, ?)});
 
 
 opendir( $dir, $indexfolder );
@@ -181,46 +165,43 @@ if (@to_delete) {
         "Error when inserting entries into temporary pcr duplicates table.\n");
     @to_delete = ();
 }
+$sth->finish();
 
-# delete from rankdflank based on temptable entries
-$query = q{DELETE FROM rank
-WHERE EXISTS (
-    SELECT * FROM pduptemp t2
-    WHERE rank.refid = t2.refid
-        AND rank.readid = t2.readid
-)};
-
-$dbh->begin_work();
+# delete from rank based on temptable entries
+$query = q{
+    DELETE FROM rank
+    WHERE EXISTS (
+        SELECT * FROM pduptemp t2
+        WHERE rank.refid = t2.refid
+          AND rank.readid = t2.readid)};
 my $delfromtable = $dbh->do($query);
-$dbh->commit();
 
 
-print "Processing complete (pcr_dup.pl), deleted $deleted duplicates.\n";
+print "Processing complete, deleted $deleted duplicates.\n";
 @stats{qw( RANK_REMOVED_PCRDUP RANKFLANK_REMOVED_PCRDUP )}
     = ( $deleted, $deleted );
 
 # for accounting of pcr dups
-print "Making a list of pcr_dup removed.\n";
-if ( open( my $fh, ">$out_folder/$DBSUFFIX.pcr_dup.txt" ) ) {
-    $i = 0;
-    for my $key ( sort keys %PENTRIES ) {
-        $i++;
-        print $fh "$i\t-" . $key . "\n";
-    }
-    print "PCR_DUP list complete with $i removed entries.\n";
-    close($fh);
-}
+# KA: turned off
+#print "Making a list of pcr_dup removed.\n";
+#if ( open( my $fh, ">$out_folder/$RUN_NAME.pcr_dup.txt" ) ) {
+#    $i = 0;
+#    for my $key ( sort keys %PENTRIES ) {
+#        $i++;
+#        print $fh "$i\t-" . $key . "\n";
+#    }
+#    print "PCR_DUP list complete with $i removed entries.\n";
+#    close($fh);
+#}
 
-# first count the intersect
-$rrintersect = 0;
-$sth = $dbh->prepare(
-    q{SELECT count(*) FROM rank
-    INNER JOIN rankflank ON rank.refid=rankflank.refid AND rank.readid=rankflank.readid}
-) or die "Couldn't prepare statement: " . $dbh->errstr;
+# re-count the intersect
+$sth = $dbh->prepare(q{
+    SELECT count(*)
+    FROM rank JOIN rankflank using (refid, readid)})
+    or die "Couldn't prepare statement: " . $dbh->errstr;
 $sth->execute() or die "Cannot execute: " . $sth->errstr();
-($rrintersect) = $sth->fetchrow_array();
+($stats{INTERSECT_RANK_AND_RANKFLANK}) = $sth->fetchrow_array();
 $sth->finish();
-$stats{INTERSECT_RANK_AND_RANKFLANK} = $rrintersect;
 
 # now exclude ties, mark in map table and record the number
 print "Updating BEST BEST BEST map entries.\n";
@@ -233,131 +214,114 @@ $dbh->do("UPDATE map SET bbb=0;")
 $dbh->do( "DELETE FROM pduptemp" )
     or die "Couldn't do statement: " . $dbh->errstr;
 
-# clear all pduptemp entries
-$sth = $dbh->prepare(
-    q{INSERT INTO pduptemp
+# repopulate pduptemp
+$sth = $dbh->prepare(q{
+    INSERT INTO pduptemp
     SELECT map.refid, map.readid FROM map
-    INNER JOIN rank ON rank.refid=map.refid AND rank.readid=map.readid
-    INNER JOIN rankflank ON rankflank.refid=map.refid AND rankflank.readid=map.readid
-    WHERE rank.ties=0 OR rankflank.ties=0}
-);
-$dbh->begin_work();
+      JOIN rank using(refid, readid)
+      JOIN rankflank using(refid, readid)
+    WHERE rank.ties = 0 OR rankflank.ties = 0});
 $sth->execute();
-$dbh->commit();
 
-$query = q{UPDATE map SET bbb=1
+$query = q{
+    UPDATE map SET bbb=1
     WHERE EXISTS (
-    SELECT refid FROM pduptemp t2
-    WHERE map.refid = t2.refid AND map.readid=t2.readid
-)};
-$dbh->begin_work();
-$i = $dbh->do($query)
+        SELECT refid FROM pduptemp
+        WHERE map.refid = pduptemp.refid
+          AND map.readid = pduptemp.readid)};
+$stats{BBB_WITH_MAP_DUPS} = $dbh->do($query)
     or die "Couldn't do statement: " . $dbh->errstr;
 $dbh->commit();
 
-$stats{BBB_WITH_MAP_DUPS} = $i;
+# make a list of ties
+# KA: turned off
+#print "Making a list of ties (references).\n";
+#if ( open( my $fh, ">$out_folder/$RUN_NAME.ties.txt" ) ) {
+#    my $read_dbh = get_dbh( { userefdb => 1, readonly => 1 } );
+#    $query = q{
+#        SELECT map.refid, max(bbb) as mbb,
+#            (select head from refdb.fasta_ref_reps where rid=map.refid) as chr,
+#            (select firstindex from refdb.fasta_ref_reps where rid=map.refid) as tind
+#        FROM map JOIN rank using(refid, readid)
+#          JOIN rankflank using(refid, readid)
+#        GROUP BY map.refid HAVING mbb=0 ORDER BY chr, tind};
+#    $sth = $read_dbh->prepare($query);
+#    $sth->execute();
+#    $i = 0;
+#    while ( my @data = $sth->fetchrow_array() ) {
+#        $i++;
+#        print $fh "$i\t-"
+#            . $data[0] . "\t"
+#            . $data[2] . "\t"
+#            . $data[3] . "\n";
+#    }
+#    $sth->finish();
+#    close($fh);
+#}
+#print "Ties list complete with $i removed references.\n";
 
 # make a list of ties
-print "Making a list of ties (references).\n";
-if ( open( my $fh, ">$out_folder/$DBSUFFIX.ties.txt" ) ) {
-    my $read_dbh = get_dbh( { userefdb => 1, readonly => 1 } );
-    $query = qq{SELECT map.refid, max(bbb) as mbb,
-            (select head from refdb.fasta_ref_reps where rid=map.refid) as chr,
-            (select firstindex from refdb.fasta_ref_reps where rid=map.refid) as tind
-        FROM map INNER JOIN rank ON rank.refid=map.refid AND rank.readid=map.readid
-        INNER JOIN rankflank ON rankflank.refid=map.refid AND rankflank.readid=map.readid
-        GROUP BY map.refid HAVING mbb=0 ORDER BY chr, tind};
-    $sth = $read_dbh->prepare($query);
-    $sth->execute();
-    $i = 0;
-    while ( my @data = $sth->fetchrow_array() ) {
-        $i++;
-        print $fh "$i\t-"
-            . $data[0] . "\t"
-            . $data[2] . "\t"
-            . $data[3] . "\n";
-    }
-    $sth->finish;
-    close($fh);
-}
-print "Ties list complete with $i removed references.\n";
-
-# make a list of ties
-print "Making a list of ties (entries).\n";
-if ( open( my $fh, ">$out_folder/$DBSUFFIX.ties_entries.txt" ) ) {
-
-    $query = q{SELECT map.refid, map.readid,rank.ties,rankflank.ties
-    FROM map
-    INNER JOIN rank ON rank.refid=map.refid AND rank.readid=map.readid
-    INNER JOIN rankflank ON rankflank.refid=map.refid AND rankflank.readid=map.readid
-    WHERE bbb=0 ORDER BY map.refid,map.readid};
-    $sth = $dbh->prepare($query);
-    $sth->execute();
-    $i = 0;
-    while ( my @data = $sth->fetchrow_array() ) {
-        $i++;
-        print $fh "$i\t-"
-            . $data[0] . "\t"
-            . $data[1] . "\t"
-            . $data[2] . "\t"
-            . $data[3] . "\n";
-    }
-    $sth->finish();
-    close($fh);
-}
-print "Ties list complete with $i removed entries.\n";
+# KA: turned off
+#print "Making a list of ties (entries).\n";
+#if ( open( my $fh, ">$out_folder/$RUN_NAME.ties_entries.txt" ) ) {
+#    $query = q{SELECT map.refid, map.readid, rank.ties, rankflank.ties
+#    FROM map JOIN rank using(refid, readid)
+#      JOIN rankflank using(refid, readid)
+#    WHERE bbb=0 ORDER BY map.refid, map.readid};
+#    $sth = $dbh->prepare($query);
+#    $sth->execute();
+#    $i = 0;
+#    while ( my @data = $sth->fetchrow_array() ) {
+#        $i++;
+#        print $fh "$i\t-"
+#            . $data[0] . "\t"
+#            . $data[1] . "\t"
+#            . $data[2] . "\t"
+#            . $data[3] . "\n";
+#    }
+#    $sth->finish();
+#    close($fh);
+#}
+#print "Ties list complete with $i removed entries.\n";
 
 # set old settings
+$dbh->commit();
 $dbh->do("PRAGMA foreign_keys = ON");
 $dbh->do("PRAGMA synchronous = ON");
+$dbh->disconnect();
 
 if ( $delfromtable != $deleted ) {
-    die
-        "Deleted number of entries($delfromtable) not equal to the number of deleted counter ($deleted), aborting! You might need to rerun from step 12.";
+    die "Deleted number of entries($delfromtable) not equal to the number of deleted"
+        . " counter ($deleted), aborting! You might need to rerun from step 12.";
 }
 
-$dbh->disconnect();
 set_statistics( \%stats );
-print strftime( "\nEnd: %F %T\n\n", localtime );
 
 1;
 
 ############################ Procedures ###############################################################
 
 sub fork_pcrdup {
-    if ( $files_processed >= $tarball_count ) {
-        return 0;
-    }
+    if ( $files_processed >= $numfiles ) { return 0;}
 
     # use a predefined number of files
     my $until = $files_processed + $files_to_process - 1;
-    $until = $tarball_count - 1 if $until > ( $tarball_count - 1 );
+    $until = $numfiles - 1 if $until > ( $numfiles - 1 );
 
     #my $output_prefix = "$root/$files_processed-$until";
     my @file_slice = @indexfiles[ ($files_processed) .. ($until) ];
     my $file_slice_count = @file_slice;
     $files_processed += $file_slice_count;
-    my $exstring;
 
     defined( my $pid = fork )
         or die "Unable to fork: $!\n";
 
+    if ( $pid != 0 ) { return $pid;} # parent
     # child
-    if ( $pid == 0 ) {
-
-        foreach (@file_slice) {
-            my $exstring
-                = "./pcr_dup.exe $indexfolder/${_} $indexfolder/${_}.pcr_dup 0 2 $KEEPPCRDUPS > /dev/null";
-            system($exstring);
-        }
-        # child must never return
-        exit 0;
-
-        # parent
+    foreach (@file_slice) {
+        system("./pcr_dup.exe $indexfolder/${_} $indexfolder/${_}.pcr_dup"
+            . " 0 2 $KEEPPCRDUPS > /dev/null");
     }
-    else {
-        return $pid;
-    }
-
-    return 0;
+    # child must never return
+    exit 0;
 }
