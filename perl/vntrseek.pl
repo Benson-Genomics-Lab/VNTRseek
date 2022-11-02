@@ -2,15 +2,15 @@
 
 # MASTER SCRIPT TO RUN THE TR VARIANT SEARCH PIPELINE
 #
-# DO NOT USE SPACES IN PATHS AND DO NOT USE DOTS (.) OR HYPHENS (-) IN RUN_NAME
+# DO NOT USE SPACES IN PATHS AND DO NOT USE INVALID FILE NAME CHARACTERS IN RUN_NAME (e.g. ? ! /)
 #
 # command line usage example:
 #  vntrseek N K --RUN_NAME RUN_NAME
 #       where N is the start step to execute (0 is the first step)
-#       and K is the end step (19 is the last step)
+#       and K is the end step (20 is the last step)
 #
 # example:
-#  vntrseek 0 19 --RUN_NAME run1 --SERVER orca.bu.edu --NPROCESSES 8
+#  vntrseek 0 20 --RUN_NAME run1 --SERVER orca.bu.edu --NPROCESSES 8
 #     --INPUT_DIR /bfdisk/watsontest --OUTPUT_DIR /smdisk &
 #
 # special commands:
@@ -53,7 +53,7 @@ my $REFS_REDUND = 0;    # used to be used in latex file, not anymore
 
 my $HELPSTRING
     = "\nUsage: $0 <start step> <end step> [options]\n\n"
-    . "\tThe first step is 0, last step is 19.\n"
+    . "\tThe first step is 0, last step is 20.\n"
     . "\tAt least --RUN_NAME, --INPUT_DIR, and --REFERENCE must be provided,\n"
     . "\t  or a valid --CONFIG file specifying them.\n"
     . "\t  Use --GEN_CONFIG to generate a default file.\n\n"
@@ -63,7 +63,7 @@ my $HELPSTRING
     . "\t--HELP                        prints this help message\n"
     . "\t--RUN_NAME                    prefix for database name (such as the name of your analysis)\n"
     . "\t--INPUT_DIR                   input data directory (BAM or plain or gzipped fasta/fastq files)\n"
-    . "\t--OUTPUT_DIR                 output directory (must be writable and executable!)\n"
+    . "\t--OUTPUT_DIR                  output directory (must be writable and executable!)\n"
     . "\t--SERVER                      server name, used for generating html links\n"
     . "\n"
     . "\t--REFERENCE                   base name of reference files (default set in global config file)\n"
@@ -85,8 +85,7 @@ my $HELPSTRING
     . "\t--GEN_CONFIG                  set with a path to generate a clean config. Command line option only.\n"
     . "\t--CLEANUP                     clear intermediate files if run successful. Command line option only.\n"
     . "\t--STATS                       print out a simple table of run statistics. Command line option only.\n"
-    . "\t--"
-    . "\t\n\nADDITIONAL USAGE:\n\n"
+    . "\n\nADDITIONAL USAGE:\n\n"
     . "\t.../vntrseek.pl 100           clear error\n"
     . "\t.../vntrseek.pl 100 N         clear error and set NextRunStep to N (0-19)\n"
     . "\t                                This is only when running on a cluster using the\n"
@@ -98,20 +97,20 @@ my $HELPSTRING
 # set options based on command line
 my %opts = ();
 GetOptions(
-    \%opts,                   "HELP",
-    "NPROCESSES=i",           "MIN_FLANK_REQUIRED=i",
-    "MAX_FLANK_CONSIDERED=i", "MIN_SUPPORT_REQUIRED=i",
-    "KEEPPCRDUPS=i",          "RUN_NAME=s",
-    "DBSUFFIX",
-    "SERVER=s",               "STRIP_454_KEYTAGS=i",
-    "IS_PAIRED_READS=i",      "PLOIDY=i",
-    "REDO_REFDB",             "INPUT_DIR=s",
-    "FASTA_DIR=s",
-    "OUTPUT_DIR=s",           "OUTPUT_ROOT=s",
-    "REFERENCE=s",            "REFERENCE_INDIST_PRODUCE=i",
-    "CLEANUP",                  "STATS",
-    "READ_LENGTH=i",          "CONFIG=s",
-    "GEN_CONFIG"
+    \%opts,         "CONFIG=s",
+    "RUN_NAME=s",   "DBSUFFIX=s",
+    "INPUT_DIR=s",  "FASTA_DIR=s",
+    "OUTPUT_DIR=s", "OUTPUT_ROOT=s",
+    "SERVER=s",
+    "REFERENCE=s",   "PLOIDY=i",
+    "READ_LENGTH=i", "IS_PAIRED_READS=i",
+    "STRIP_454_KEYTAGS=i",
+    "MIN_FLANK_REQUIRED=i",   "MAX_FLANK_CONSIDERED=i",
+    "MIN_SUPPORT_REQUIRED=i", "KEEPPCRDUPS=i",
+    "NPROCESSES=i",
+    "REDO_REFDB",   "REFERENCE_INDIST_PRODUCE=i",
+    "CLEANUP",
+    "HELP", "STATS", "GEN_CONFIG"
 );
 
 # Print help string if that's all they ask

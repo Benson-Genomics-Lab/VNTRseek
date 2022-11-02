@@ -65,13 +65,19 @@ KEEPPCRDUPS=1
 # eg, 1 - yes
 REDO_REFDB=0
 
-# generate a file of indistinguishable references, 
-# necessary only if a file is not already available for the reference set
-# eg, 1 - generate
-# eg, 0 - don't generate
-REFERENCE_INDIST_PRODUCE=0
-
 # set this to the number of processors on your system
 # (or less if sharing the system with others or RAM is limited)
+# internally, vntrseek knows to spawn one less child process than this
+# since perl does not respect processor limits set in the environment.
+# this is mostly relevant to grid engines that will reap the job if
+# it consumes more resources than granted.
 # eg, 8
 NPROCESSES=2
+
+# whether to remove additional intermediate files upon a successful run.
+# vntrseek leaves behind files that cross steps to allow the run
+# to begin from any intermediate point.
+# these files take up a significant amount of memory
+# 1 - remove intermediate files on success
+# 0 - keep intermediate files
+CLEANUP=0

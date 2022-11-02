@@ -1,0 +1,47 @@
+#!/bin/bash -l
+
+# Lines beginning with #$ are passed to qsub as options.
+
+# Project, which may have dedicated resources
+#$ -P mylab
+
+# Name of job
+#$ -N vntrseek_example
+
+# File to receive standard output
+#$ -o test.out
+
+# File to receive standard error
+#$ -e test.err
+
+# Email for notifying of events
+#$ -M kyleraka@bu.edu
+
+# Events to notify for; (b)egin, (e)nd, (a)bort
+#$ -m bea
+
+# Request particular resources
+# project dedicated resources
+#$ -l buyin
+# 30 hours (h)ard limit (r)un (t)ime
+#$ -l h_rt=30:00:00
+
+# Multiprocessing environment, 8 cores
+#$ -pe omp 8
+
+# load tools into envionment, you'll likely need to change this
+module load samtools perl sqlite3
+
+# change this
+install=/path/to/vntrseek/install/folder
+
+reference=/path/toi/reference/prefix
+
+# minimum run options
+$install/vntrseek.pl 100 --RUN_NAME example_run
+$install/vntrseek.pl 0 20 --RUN_NAME example_run --INPUT_DIR example_data/ --REFERENCE $reference
+
+# or if you'd like to use a config
+# $install/vntrseek.pl 100 --CONFIG example.cnf
+# $install/vntrseek.pl 0 20 --CONFIG example.cnf
+

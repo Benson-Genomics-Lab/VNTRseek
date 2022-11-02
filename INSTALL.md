@@ -22,7 +22,7 @@ Latest versions preferred.
 - bedtools
 - Perl (>= 5.24.0)
   - DBI and DBD::SQLite modules
-- SQLite (>= 3.0.0)
+- SQLite (>= 3.37.0)
 
 TRF is also required, but is downloaded during installation. If the download fails,
 you can download it manually from

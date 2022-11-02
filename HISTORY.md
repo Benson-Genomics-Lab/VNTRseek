@@ -18,12 +18,14 @@
 - raised `SeqReader` out of `VNTRseek` folder
 - revised all SQLite statements for consistency, readability, and efficiency
 - created step 20 for database reduction steps
-  - implemented read compression in perl
+  - combination `scores` table from `map`, `rank`, and `rankflank`
+  - implemented read compression in perl, potential new `compressed_reads` table
+  - header reduction for fasta reads matching standard Illumina format
 - added [edlib](https://github.com/KylerAKA-BU/edlib) to build
   - modified lots of files for this
-- changed how `SeqReader.pm` locates `seqtk
+- changed how `SeqReader.pm` locates `seqtk`
 - created `FinishStep` function to reduce code repetition
-- 
+- removed statistics and blocks for empty steps (6, 7, 11, 18)
 
 ---
 # Version 2.0.1 - Jul 26, 2022
