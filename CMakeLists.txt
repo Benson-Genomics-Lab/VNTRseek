@@ -3,8 +3,8 @@ SET(PACKAGE_NAME VNTRseek)
 
 cmake_minimum_required(VERSION 3.0)
 # Set current VNTRseek version. Not user configurable
-SET(VNTRVer "2.0.1")
-project(VNTRseek VERSION 2.0.1 LANGUAGES C)
+SET(VNTRVer "2.0.2")
+project(VNTRseek VERSION 2.0.2 LANGUAGES C)
 # project(VNTRseek VERSION ${VNTRVer} LANGUAGES C)
 
 SET(InstallSuffix "vntrseek${VNTRVer}")
@@ -65,7 +65,7 @@ SET(TRFBin "trf${TRFVer}-ngs.linux.exe")
 # Build files in src
 add_subdirectory(src)
 add_subdirectory(perl)
-add_subdirectory(scripts)
+# add_subdirectory(scripts)
 #ADD_SUBDIRECTORY(etc)
 
 # Install required perl modules locally
@@ -96,9 +96,11 @@ install(CODE "
     endif(EXISTS \"${CMAKE_INSTALL_PREFIX}/${InstallSuffix}/defaults.vs.cnf\")
 ")
 SET(MISC_FILES
+    README.md
+    RUNNING.md
     HISTORY.md
     COPYING
-    README.md RUNNING.md
+    REFERENCE_FORMATS
     reduced_db.sql
     sqlite_schema.sql
     cpanfile

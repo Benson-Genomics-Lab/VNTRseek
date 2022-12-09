@@ -9,6 +9,7 @@ use File::Temp;
 use Try::Tiny;
 use POSIX 'strftime';
 
+
 if ( $ENV{DEBUG} ) {
     use Data::Dumper;
 }
@@ -24,12 +25,12 @@ our @EXPORT_OK = qw(trim read_config_file get_config validate_config
 # author: Yevgeniy Gelfand, Yozen Hernandez
 # maintainer: Kyler Anderson
 # create date: Oct 30, 2010
-# last edited: Jul 8, 2022
+# last edited: Jul 29, 2022
 # function: common functions for vntr pipleline scripts.
 # Provide functions for database management, configuration
 # reading/writing, and miscellaneous common utilities.
 
-my %VSCNF_FILE  = ();
+my %cnf = (); # Run Configuation
 my %valid_stats = (
     MAP_ROOT                                            => 1,
     PARAM_TRF                                           => 1,
@@ -150,8 +151,8 @@ sub read_config_file {
     my %opts = ();
 
     # read config
-    open(my $cnf, "<", "$file_loc") or die "$!";
-    while (<$cnf>) {
+    open(my $cnfh, "<", "$file_loc") or die "$!";
+    while (<$cnfh>) {
         chomp;
         if (/^\#/) { next;} # skip comments
 
@@ -162,7 +163,7 @@ sub read_config_file {
             $opts{ uc($key) } = $val;
         }
     }
-    close($cnf);
+    close($cnfh);
     return %opts;
 }
 
@@ -193,10 +194,9 @@ sub get_config {
 
     # Backwards compatibility option substitutions
     my %renames = (
-        'FASTA_DIR', 'INPUT_DIR'#, other renames coming soon
-        #'OUTPUT_ROOT', 'OUTPUT_DIR',
-        #'TMPDIR', 'TMP_DIR',
-        #'DBSUFFIX', 'DBPREFIX'
+        'FASTA_DIR', 'INPUT_DIR',
+        'OUTPUT_ROOT', 'OUTPUT_DIR',
+        'DBSUFFIX', 'RUN_NAME'
     );
 
     for my $old_name (keys %renames) {
@@ -210,16 +210,12 @@ sub get_config {
     $opts{'NPROCESSES'} -= 1;
 
     # Resolve relative paths for future chdirs
-    for my $file ('INPUT_DIR', 'OUTPUT_ROOT', 'TMPDIR') {
+    for my $file ('INPUT_DIR', 'OUTPUT_DIR') {
         if ($opts{$file}) { $opts{$file} = abs_path($opts{$file});}
     }
-    if (!$opts{'TMPDIR'}) {
-        $opts{'TMPDIR'} = $opts{'OUTPUT_ROOT'};
-        print "TMPDIR not set. Using OUTPUT_ROOT ($opts{'OUTPUT_ROOT'}).\n";
-    }
 
-    # keep a local copy of everything and send back the results
-    %VSCNF_FILE = %opts;
+    # keep a local pointer and send back the results
+    %cnf = %opts;
     return %opts;
 }
 
@@ -228,77 +224,75 @@ sub validate_config {
     my $please_check = "Please check the command line arguments or the configuration file.\n";
 
     # Validation
-    croak("Please set the database prefix (DBSUFFIX) on the command line or in the configuration file.\n")
-        unless $VSCNF_FILE{'DBSUFFIX'};
+    croak("Please set the run name (RUN_NAME) on the command line or in the configuration file.\n")
+        unless $cnf{'RUN_NAME'};
 
     croak("Please set the input directory (INPUT_DIR) on the command line or in the configuration file.\n")
-        unless $VSCNF_FILE{'INPUT_DIR'};
-    croak("Input directory '$VSCNF_FILE{'INPUT_DIR'}' could not be read. Check the spelling and/or your permissions.")
-        unless -r -e $VSCNF_FILE{'INPUT_DIR'};
+        unless $cnf{'INPUT_DIR'};
+    croak("Input directory '$cnf{'INPUT_DIR'}' could not be read. Check the spelling and/or your permissions.")
+        unless -r -e $cnf{'INPUT_DIR'};
 
-    croak("OUTPUT_ROOT value cannot be blank. " . $please_check)
-        unless $VSCNF_FILE{'OUTPUT_ROOT'};
-    croak("Output directory '$VSCNF_FILE{'OUTPUT_ROOT'}' could not be accessed. Check the spelling and/or your permissions.")
-        unless (-e $VSCNF_FILE{'OUTPUT_ROOT'} or mkdir( $VSCNF_FILE{'OUTPUT_ROOT'} )) and -x -w -r $VSCNF_FILE{'OUTPUT_ROOT'};
-
-    croak("Temporary file directory '$VSCNF_FILE{'TMPDIR'}' could not be accessed. Check the spelling and/or your permissions.")
-        unless (-e $VSCNF_FILE{'TMPDIR'} or mkdir( $VSCNF_FILE{'TMPDIR'} )) and -x -w -r $VSCNF_FILE{'TMPDIR'};
+    croak("OUTPUT_DIR value cannot be blank. " . $please_check)
+        unless $cnf{'OUTPUT_DIR'};
+    croak("Output directory '$cnf{'OUTPUT_DIR'}' could not be accessed. Check the spelling and/or your permissions.")
+        unless (-e $cnf{'OUTPUT_DIR'} or mkdir( $cnf{'OUTPUT_DIR'} )) and -x -w -r $cnf{'OUTPUT_DIR'};
 
     croak("SERVER value cannot be blank. " . $please_check)
-        unless $VSCNF_FILE{'SERVER'};
+        unless $cnf{'SERVER'};
 
 
     croak("PLOIDY value must be > 0. " . $please_check)
-        unless $VSCNF_FILE{'PLOIDY'} > 0;
+        unless $cnf{'PLOIDY'} > 0;
 
     croak("READ_LENGTH value must be > 0. " . $please_check)
-        unless $VSCNF_FILE{'READ_LENGTH'} > 0;
+        unless $cnf{'READ_LENGTH'} > 0;
 
     croak("IS_PAIRED_READS value must be 0/1. " . $please_check)
-        unless $VSCNF_FILE{'IS_PAIRED_READS'} >= 0;
+        unless $cnf{'IS_PAIRED_READS'} >= 0;
 
     croak("STRIP_454_KEYTAGS value must be 0/1. " . $please_check)
-        unless $VSCNF_FILE{'STRIP_454_KEYTAGS'} >= 0;
+        unless $cnf{'STRIP_454_KEYTAGS'} >= 0;
 
     croak("KEEPPCRDUPS value must be 0/1. " . $please_check)
-        unless $VSCNF_FILE{'KEEPPCRDUPS'} >= 0;
+        unless $cnf{'KEEPPCRDUPS'} >= 0;
 
 
     croak("MIN_FLANK_REQUIRED value must be > 0. " . $please_check)
-        unless $VSCNF_FILE{'MIN_FLANK_REQUIRED'} > 0;
+        unless $cnf{'MIN_FLANK_REQUIRED'} > 0;
 
     croak("MAX_FLANK_CONSIDERED value must be > 0. " . $please_check)
-        unless $VSCNF_FILE{'MAX_FLANK_CONSIDERED'} > 0;
+        unless $cnf{'MAX_FLANK_CONSIDERED'} > 0;
 
     croak("MIN_SUPPORT_REQUIRED value must be > 0. " . $please_check)
-        unless $VSCNF_FILE{'MIN_SUPPORT_REQUIRED'} > 0;
+        unless $cnf{'MIN_SUPPORT_REQUIRED'} > 0;
 
 
     croak("NPROCESSES value must be > 1. " . $please_check)
-        unless $VSCNF_FILE{'NPROCESSES'} > 0; # Intentional discrepancy, see get_config
+        unless $cnf{'NPROCESSES'} > 0; # Intentional discrepancy, see get_config
 
 
     croak("Please set the reference base name (REFERENCE) on the command line or in the configuration file.\n")
-        unless $VSCNF_FILE{'REFERENCE'};
+        unless $cnf{'REFERENCE'};
 
     croak("REFERENCE_INDIST_PRODUCE value must be 0/1. " . $please_check)
-        unless $VSCNF_FILE{'REFERENCE_INDIST_PRODUCE'} >= 0;
+        unless $cnf{'REFERENCE_INDIST_PRODUCE'} >= 0;
 
-    if ( !( -e $VSCNF_FILE{'REFERENCE'} . ".db" ) || $VSCNF_FILE{'REDO_REFDB'} ) {
+    if ( !( -e $cnf{'REFERENCE'} . ".db" ) || $cnf{'REDO_REFDB'} ) {
         for my $ext ('.leb36', '.seq', '.indist') {
-            croak("Reference file '$VSCNF_FILE{'REFERENCE'}$ext' not found!\n"
+            croak("Reference file '$cnf{'REFERENCE'}$ext' not found!\n"
                   . "You may need to rebuild the reference db with REDO_REFDB option.\n")
-                unless -r -e $VSCNF_FILE{'REFERENCE'} . $ext;
+                unless -r -e $cnf{'REFERENCE'} . $ext;
         }
     }
 }
 
+
 ################################################################
 sub print_config {
-    my $output_folder = "$VSCNF_FILE{'OUTPUT_ROOT'}/vntr_$VSCNF_FILE{'DBSUFFIX'}";
-    my $config_file = "$output_folder/$VSCNF_FILE{'DBSUFFIX'}.vs.cnf";
+    my $output_folder = "$cnf{'OUTPUT_DIR'}/vntr_$cnf{'RUN_NAME'}";
+    my $config_file = "$output_folder/$cnf{'RUN_NAME'}.vs.cnf";
     my $when = strftime("%c", localtime);
-    my $padproc = $VSCNF_FILE{'NPROCESSES'} + 1;
+    my $padproc = $cnf{'NPROCESSES'} + 1;
     open( my $config_fh, ">", $config_file )
         or die "Cannot open '$config_file' for writing!\n";
 
@@ -312,25 +306,24 @@ sub print_config {
 #   with this output location.
 # Use vntrseek --HELP for option descriptions.
 
-DBSUFFIX=$VSCNF_FILE{"DBSUFFIX"}
-INPUT_DIR=$VSCNF_FILE{"INPUT_DIR"}
-OUTPUT_ROOT=$VSCNF_FILE{"OUTPUT_ROOT"}
-TMPDIR=$VSCNF_FILE{"TMPDIR"}
-SERVER=$VSCNF_FILE{"SERVER"}
+RUN_NAME=$cnf{"RUN_NAME"}
+INPUT_DIR=$cnf{"INPUT_DIR"}
+OUTPUT_DIR=$cnf{"OUTPUT_DIR"}
+SERVER=$cnf{"SERVER"}
 
-REFERENCE=$VSCNF_FILE{"REFERENCE"}
-REDO_REFDB=$VSCNF_FILE{"REDO_REFDB"}
-REFERENCE_INDIST_PRODUCE=$VSCNF_FILE{"REFERENCE_INDIST_PRODUCE"}
+REFERENCE=$cnf{"REFERENCE"}
+REDO_REFDB=$cnf{"REDO_REFDB"}
+REFERENCE_INDIST_PRODUCE=$cnf{"REFERENCE_INDIST_PRODUCE"}
 
-PLOIDY=$VSCNF_FILE{"PLOIDY"}
-IS_PAIRED_READS=$VSCNF_FILE{"IS_PAIRED_READS"}
-READ_LENGTH=$VSCNF_FILE{"READ_LENGTH"}
-KEEPPCRDUPS=$VSCNF_FILE{"KEEPPCRDUPS"}
-STRIP_454_KEYTAGS=$VSCNF_FILE{"STRIP_454_KEYTAGS"}
+PLOIDY=$cnf{"PLOIDY"}
+IS_PAIRED_READS=$cnf{"IS_PAIRED_READS"}
+READ_LENGTH=$cnf{"READ_LENGTH"}
+KEEPPCRDUPS=$cnf{"KEEPPCRDUPS"}
+STRIP_454_KEYTAGS=$cnf{"STRIP_454_KEYTAGS"}
 
-MIN_FLANK_REQUIRED=$VSCNF_FILE{"MIN_FLANK_REQUIRED"}
-MAX_FLANK_CONSIDERED=$VSCNF_FILE{"MAX_FLANK_CONSIDERED"}
-MIN_SUPPORT_REQUIRED=$VSCNF_FILE{"MIN_SUPPORT_REQUIRED"}
+MIN_FLANK_REQUIRED=$cnf{"MIN_FLANK_REQUIRED"}
+MAX_FLANK_CONSIDERED=$cnf{"MAX_FLANK_CONSIDERED"}
+MIN_SUPPORT_REQUIRED=$cnf{"MIN_SUPPORT_REQUIRED"}
 
 NPROCESSES=$padproc
 CNF
@@ -399,7 +392,7 @@ sub get_statistics {
   #     die "get_statistics: expects at least 2 parameters, passed $argc !\n";
   # }
 
-    # my $DBSUFFIX = shift;
+    # my $RUN_NAME = shift;
     my @stats = grep { exists $valid_stats{$_} } @_;
     my $dbh = get_dbh( { readonly => 1 } );
     my $sql_clause;
@@ -453,7 +446,7 @@ sub _init_ref_dbh {
     }
 
     if ( $opts->{redo} ) {
-        $VSCNF_FILE{REDO_REFDB} = 0;
+        $cnf{REDO_REFDB} = 0;
     }
 
     # END TODO
@@ -483,12 +476,12 @@ sub get_ref_dbh {
 ################################################################
 sub get_dbh {
 
-    # Might use in the future, connection options
+    # Connection options
     my $opts = shift // {};
 
     my $dbh;
     my $dbfile
-        = "$VSCNF_FILE{OUTPUT_ROOT}/vntr_$VSCNF_FILE{DBSUFFIX}/$VSCNF_FILE{DBSUFFIX}.db";
+        = "$cnf{OUTPUT_DIR}/vntr_$cnf{RUN_NAME}/$cnf{RUN_NAME}.db";
 
     # If the db file doesn't exist, or is size 0, initialize the db
     if ( !-e $dbfile || -z $dbfile ) {
@@ -503,14 +496,11 @@ sub get_dbh {
         ReadOnly => 1 * ( exists $opts->{readonly} && $opts->{readonly} )
     );
 
-    $dbh
-        = DBI->connect( "DBI:SQLite:dbname=$dbfile",
-        undef, undef, \%dbi_opts, )
+    $dbh = DBI->connect( "DBI:SQLite:dbname=$dbfile", undef, undef, \%dbi_opts, )
         or die "Could not connect to database $dbfile: $DBI::errstr";
 
     my ($stats_schema) = $dbh->selectrow_array(
-        q{SELECT sql FROM sqlite_master
-        WHERE name = 'stats'}
+        q{SELECT sql FROM sqlite_master WHERE name = 'stats'}
     );
 
     # If the stats table does not exist, init the db.
@@ -649,12 +639,12 @@ sub get_dbh {
 
     # Attach reference set database
     if ( exists $opts->{userefdb} && $opts->{userefdb} ) {
-        my $refdbfile = $VSCNF_FILE{REFERENCE} . ".db";
+        my $refdbfile = $cnf{REFERENCE} . ".db";
 
         # First initialize the reference DB, if needed
         # Don't save the returned dbh
-        # _init_ref_dbh( $VSCNF_FILE{REFERENCE},
-        #     { redo => $VSCNF_FILE{REDO_REFDB} } );
+        # _init_ref_dbh( $cnf{REFERENCE},
+        #     { redo => $cnf{REDO_REFDB} } );
         ( $ENV{DEBUG} )
             && warn "Connecting to refseq db at $refdbfile\n";
         try {
@@ -664,7 +654,7 @@ sub get_dbh {
             warn "$_\n";
             if (/unable to open database/) {
                 die "Try running VNTRseek as:\n"
-                    . "\n\tvntrseek --reference $VSCNF_FILE{REFERENCE} --redo_refdb\n\n"
+                    . "\n\tvntrseek --reference $cnf{REFERENCE} --redo_refdb\n\n"
                     . "then clear the error and try again.\n";
             }
             else {
@@ -1104,7 +1094,7 @@ sub run_redund {
         q{SELECT sql FROM minrep.sqlite_master
         WHERE name = 'minreporder'}
     );
-    
+
     unless ($minrep_sql) {
         my $res = $dbh->selectall_arrayref(q{SELECT * FROM minrep.sqlite_master});
         use Data::Dumper;
@@ -1157,20 +1147,10 @@ sub run_redund {
 
 ################################################################
 sub write_sqlite {
-
     my $installdir = "$FindBin::RealBin";
     ( $ENV{DEBUG} ) && warn "Creating SQLite database...\n";
 
-    my $dbfile
-        = "$VSCNF_FILE{OUTPUT_ROOT}/vntr_$VSCNF_FILE{DBSUFFIX}/$VSCNF_FILE{DBSUFFIX}.db";
-
-    # if ( -e $dbfile && !( exists $VSCNF_FILE{CLEAN} ) ) {
-    #     die
-    #         "Error: run database exists. Running step 0 is potentially destructive! "
-    #         . "Exiting...\n(To override use option '--clean')\n";
-    # }
-    # ( exists $VSCNF_FILE{CLEAN} ) && unlink $dbfile;
-
+    my $dbfile = "$cnf{OUTPUT_DIR}/vntr_$cnf{RUN_NAME}/$cnf{RUN_NAME}.db";
     system("sqlite3 $dbfile < $installdir/sqlite_schema.sql");
 }
 

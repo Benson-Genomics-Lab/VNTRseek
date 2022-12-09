@@ -1,28 +1,25 @@
-
 =head1 NAME
 
-VNTRseek::SeqReader - We use this module to process input read files
+SeqReader - We use this module to process input read files
 for TRF. The functions in this module take in file names and return
 functions which act like reader objects, eg as in BioPerl.
 
 =head1 SYNOPSIS
 
-    use VNTRseek::SeqReader;
+    use SeqReader;
 
 =head1 DESCRIPTION
 
-
-
 =cut
 
-package VNTRseek::SeqReader;
+package SeqReader;
 use v5.24;
 use warnings;
 use autodie;
 use Try::Tiny;
 use Carp;
-use Exporter qw(import);
-use POSIX qw(ceil);
+use Exporter "import";
+use POSIX "ceil";
 
 # use IO::Async::Function;
 # use IO::Async::Stream;
@@ -56,15 +53,8 @@ sub new {
 sub _init {
     my ( $self, %params ) = @_;
 
-    use File::Basename;
-
-    # Get module's path safely (can't use FindBin reliably in a module)
-    $self->{install_dir}
-        = File::Basename::dirname( eval { ( caller() )[1] } ) . "/../../";
-    no File::Basename;
-
     foreach my $param (
-        qw( input_dir output_dir is_paired_end strip_454_TCAG
+        qw( seqtk input_dir output_dir is_paired_end strip_454_TCAG
         warn_454_TCAG reads_split trf_param trf2proclu_param )
         )
     {
@@ -166,19 +156,14 @@ sub _init_input_list {
     # If BAM, init files list
     if ( $input_format eq "bam" ) {
         @filenames = $self->init_bam( files => \@filenames );
-        warn "BAM input. Will need to process "
+        print "BAM input. Will need to process "
             . scalar(@filenames)
             . " sets of reads from file.\n";
     }
     else {
-        warn scalar(@filenames)
+        print scalar(@filenames)
             . " supported files ($input_format format, $compression_msg) found in $self->{input_dir}\n";
     }
-
-    # if ( $ENV{DEBUG} ) {
-    #     use Data::Dumper;
-    #     say Dumper( \@filenames );
-    # }
 
     $self->{num_inputs}   = scalar @filenames;
     $self->{inputs}       = \@filenames;
@@ -203,14 +188,10 @@ sub _next_reader {
     my $file_index = $self->{num_inputs} - @{ $self->{inputs} };
     my $next_input = shift( @{ $self->{inputs} } );
 
-    # if ( $ENV{DEBUG} ) {
-    #     use Data::Dumper;
-    #     say Dumper( \$next_input );
-    # }
     if ($next_input) {
         return $self->{_reader}->(
             decom       => $self->{decom},
-            install_dir => $self->{install_dir},
+            seqtk       => $self->{seqtk},
             input       => $next_input,
             file_index  => $file_index,
         );
@@ -252,13 +233,7 @@ sub get_reads {
 
             # Trim tags, if needed, and prepare reverse complement
             if ( $self->{strip_454_TCAG} && ( $seq !~ s/^TCAG//i ) ) {
-                if ( $self->{warn_454_TCAG} ) {
-                    warn
-                        "Read does not start with keyseq TCAG. Full sequence: $seq\n";
-                }
-
-                die
-                    "Read does not start with keyseq TCAG. Full sequence: $seq\n";
+                die "Read $header does not start with keyseq TCAG. Full sequence: $seq\n";
             }
 
             $read_hash{$header} = $seq;
@@ -291,7 +266,7 @@ sub get_reads {
 
     # if (@read_list) {
     #     my $start_id = ( $split_index * $self->{reads_split} ) + 1;
-    #     say "Queuing worker: $split_index, starting id: $start_id";
+    #     #print "Queuing worker: $split_index, starting id: $start_id\n";
     #     my $f = $read_function->call(
     #         args => [
     #             {   output_prefix    => "$self->{output_dir}/$split_index",
@@ -322,16 +297,6 @@ sub get_reads {
     # $self->{read_future} = $future;
 
     # $self->{read_loop}->await_all(@futures);
-}
-
-# DELETEME
-sub wait_for_readers {
-    my ( $self, %args ) = @_;
-
-    $self->{read_loop}->await( $self->{read_future} );
-
-    # $self->{redund_process}->close_when_empty();
-    $self->{read_loop}->stop;
 }
 
 =item I<run_trf()>
@@ -382,9 +347,8 @@ sub run_trf {
             . $headers[$num_reads] . "\n"
             . $read_href->{ $headers[$num_reads] }
             . "\n>$rchead\n"
-            . (
-            reverse( $read_href->{ $headers[$num_reads] } )
-                =~ tr/ACGTacgt/TGCAtgca/r );
+            . ( reverse($read_href->{ $headers[$num_reads] })
+                    =~ tr/ACGTacgt/TGCAtgca/r );
         $num_reads++;
         return $res;
     };
@@ -393,6 +357,7 @@ sub run_trf {
     open my $trf_stdout, ">", "$output_prefix.index";
 
     my $proc_trf_output = sub {
+
         chomp( my $line = $_[0] );
         print $trf_stdout $_[0];
         warn "Chunk: $line\n" if ( $ENV{DEBUG} );
@@ -409,7 +374,7 @@ sub run_trf {
     };
 
     try {
-        run( \@trf_cmd, $trf_input, "|", \@trf2proclu_cmd,
+        run(\@trf_cmd, $trf_input, "|", \@trf2proclu_cmd,
             '>', new_chunker, $proc_trf_output );
     }
     catch {
@@ -424,38 +389,26 @@ sub run_trf {
     # If there were any reads with TRs, dump those reads to a file
     if (%tr_reads) {
         open my $reads_fh, ">", "$output_prefix.reads";
-
         for my $header ( keys %tr_reads ) {
-            unless ( exists $read_href->{$header} ) {
-                die "Error: unlogged read (header $header) found in index. ",
-                    "Possibly a bug in the sequence reading code. ",
-                    "Please file a bug report.\n";
-            }
-
             if ( $read_href->{$header} ) {
-                say $reads_fh "$header\t" . $read_href->{$header};
+                print $reads_fh "$header\t" . $read_href->{$header} . "\n";
                 $read_href->{$header} = "";
             }
         }
-
-        # .reads file gets one more line with the total number
-        # of reads we read (different from reads with TRs count)
-        # say $reads_fh "totalreads\t$num_reads";
         close $reads_fh;
-
-        # Get stats from indexhist file
-        open my $fh, "<", "$output_prefix.indexhist";
-        chomp( my $line = <$fh> );
-        @res{
-            qw(
-                num_trs_ge7
-                num_trs
-                num_reads_trs_ge7
-                num_reads_trs
-                )
-        } = split(/\t/, $line);
-        close $fh;
     }
+
+
+    # Get stats from indexhist file
+    open my $fh, "<", "$output_prefix.indexhist";
+    chomp( my $line = <$fh> );
+    @res{qw(
+        num_trs_ge7
+        num_trs
+        num_reads_trs_ge7
+        num_reads_trs
+        )} = split(/\t/, $line);
+    close $fh;
 
     return \%res;
 }
@@ -490,14 +443,15 @@ This particular sub does NOT modify the $files_to_process value.
 sub read_fastaq {
     my %args = @_;
 
-    warn "Using $args{install_dir} for seqtk location.\n"
+    warn "Using $args{seqtk} for seqtk location.\n"
         if ( $ENV{DEBUG} );
-    my $seqtk_bin = $args{install_dir} . "/seqtk";
+    my $seqtk_bin = $args{seqtk};
 
     # Since we are using seqtk, use pipe open mode
     my $openmode = "-|";
 
-    warn "Processing file " . $args{input} . "\n";
+    # this will be a problem given many input fastas
+    print "Processing file " . $args{input} . "\n";
     my $filename = '"' . $args{input} . '"';
 
     if ( $args{decom} ) {
@@ -567,7 +521,7 @@ sub init_bam {
     # TODO Use bedtools bamtofastq?
     # For samtools, can use "-L <bedfile> -M" and have
     # separate command for all unmapped
-    my $samviewcmd   = "samtools view -T /projectnb/vntrseek/marzie/human_vntrs/new_genomes/test/reference/GRCh38_full_analysis_set_plus_decoy_hla.fa ";
+    my $samviewcmd   = "samtools view ";
     my $unpairedflag = "-F 1"
         ; # Probably not required: only single-end fragments in a single-end template anyway
     my $firstsegflag      = "-f 64";
@@ -617,9 +571,6 @@ Requires samtools as an external dependency.
 
 sub read_bam {
     my %args = @_;
-
-    # use Data::Dumper;
-    # say "Input: " . Dumper($args{input});
 
     # warn "$current_idx\n";
     my $cmdhash = $args{input};

@@ -23,16 +23,16 @@ BEGIN TRANSACTION;
 
 DROP TABLE IF EXISTS newdb.rank;
 
-CREATE TABLE newdb.rank (
-  refid integer NOT NULL,
-  readid integer NOT NULL,
-  score float DEFAULT NULL,
+--CREATE TABLE newdb.rank (
+--  refid integer NOT NULL,
+--  readid integer NOT NULL,
+--  score float DEFAULT NULL,
   -- ties integer NOT NULL DEFAULT 0,
   -- refdir char(1) NOT NULL,
-  PRIMARY KEY (refid,readid)
-) WITHOUT ROWID;
+--  PRIMARY KEY (refid, readid)
+--) WITHOUT ROWID;
 
-INSERT INTO  newdb.rank (refid, readid, score) SELECT refid, readid, score FROM rank;
+--INSERT INTO  newdb.rank (refid, readid, score) SELECT refid, readid, score FROM rank;
 
 --*******************************************************
 -- rankflank table
@@ -42,15 +42,15 @@ INSERT INTO  newdb.rank (refid, readid, score) SELECT refid, readid, score FROM 
 
 DROP TABLE IF EXISTS newdb.rankflank;
 
-CREATE TABLE newdb.rankflank (
-  refid integer NOT NULL,
-  readid integer NOT NULL,
-  score float DEFAULT NULL,
+--CREATE TABLE newdb.rankflank (
+--  refid integer NOT NULL,
+--  readid integer NOT NULL,
+--  score float DEFAULT NULL,
   -- ties integer NOT NULL DEFAULT 0,
-  PRIMARY KEY (refid,readid)
-) WITHOUT ROWID;
+--  PRIMARY KEY (refid, readid)
+--) WITHOUT ROWID;
 
-INSERT INTO  newdb.rankflank (refid, readid, score) SELECT refid, readid, score FROM rankflank;
+-- INSERT INTO  newdb.rankflank (refid, readid, score) SELECT refid, readid, score FROM rankflank;
 
 --*******************************************************
 -- rankandrankflank table
@@ -66,37 +66,65 @@ DROP TABLE IF EXISTS newdb.rankandrankflank;
 --   -- rankflankscore float DEFAULT NULL, -- do not need, not used in reference.sql
 --   PRIMARY KEY (refid,readid)
 -- ) WITHOUT ROWID;
--- 
+--
 -- INSERT INTO  newdb.rankandrankflank (refid, readid) SELECT refid, readid FROM rank JOIN rankflank USING (refid, readid);
 
 --*******************************************************
 -- map table
--- field bbb needed to determine which reads are mapped bbb, but is never used in the new database once refidcounts table is created, so remove
+-- field bbb needed to determine which reads are mapped bbb,
+-- -- KA: 8/22
+--     "but is never used in the new database once refidcounts table is created, so remove"
+--    I don't think this is true
 -- field reserved is 1 if the mapping is for a vntr
 -- field reserved2 not used in any queries
 -- multi-field primary key, use WITHOUT ROWID
--- might be combined with other tables with same multi-field key
+-- XXX might be XXX is combined with other tables with same multi-field key
 -- Analysis of queries shows that map has lookup of refid and a join using readid, but only after finding the refid, so can drop readid index
 
 DROP TABLE IF EXISTS newdb.map;
 
-CREATE TABLE newdb.map (
-  refid integer NOT NULL,
-  readid integer NOT NULL,
-  reserved integer NOT NULL,
+--CREATE TABLE newdb.map (
+--  refid integer NOT NULL,
+--  readid integer NOT NULL,
+--  reserved integer NOT NULL,
   -- reserved2 integer NOT NULL,
-  -- bbb integer NOT NULL DEFAULT 0,
-  PRIMARY KEY (refid,readid)
-) WITHOUT ROWID;
+--  bbb integer NOT NULL DEFAULT 0,
+--  PRIMARY KEY (refid, readid)
+--) WITHOUT ROWID;
 
 --INSERT INTO  newdb.map (refid, readid, reserved, bbb) SELECT refid, readid, reserved, bbb FROM map;
-INSERT INTO  newdb.map (refid, readid, reserved) SELECT refid, readid, reserved FROM map;
+--INSERT INTO  newdb.map (refid, readid, reserved) SELECT refid, readid, reserved FROM map;
 
 --CREATE INDEX "idx_map_read_index" ON "map" (`readid`);
 
 --*******************************************************
+-- scores new table
+-- combines map, rank, and rankflank tables
+-- field bbb needed to determine which reads are mapped bbb
+-- field reserved is 1 if the mapping is for a vntr
+
+-- multi-field primary key, use WITHOUT ROWID
+
+DROP TABLE IF EXISTS newdb.scores;
+
+CREATE TABLE newdb.scores (
+  refid integer NOT NULL,
+  readid integer NOT NULL,
+  reserved integer NOT NULL,
+  bbb integer NOT NULL DEFAULT 0,
+  rank_score float DEFAULT NULL,
+  rankflank_score float DEFAULT NULL,
+  PRIMARY KEY (refid, readid)
+) WITHOUT ROWID;
+
+INSERT INTO newdb.scores (refid, readid, reserved, bbb, rank_score, rankflank_score)
+SELECT refid, readid, reserved, bbb, rank.score, rankflank.score
+FROM map LEFT JOIN rank using(refid, readid) LEFT JOIN rankflank USING(refid, readid);
+
+
+--*******************************************************
 -- refidcounts new table
--- used to speed up references query 
+-- used to speed up references query
 -- and to add BBB mappings without ties
 
 DROP TABLE IF EXISTS newdb.refidcounts;
@@ -404,8 +432,8 @@ ANALYZE newdb;
 
 -- possible fix (should put these at top)
 -- may not work because temp_store_directory is deprecated
--- pragma temp_store = 1; 
+-- pragma temp_store = 1;
 -- pragma temp_store_directory = '/var/www/VNTRview_1.09/db';
-VACUUM newdb; 
+VACUUM newdb;
 
 DETACH newdb;

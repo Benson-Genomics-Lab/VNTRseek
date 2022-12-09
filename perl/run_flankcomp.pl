@@ -4,26 +4,16 @@ my $RECORDS_PER_INFILE_INSERT = 100000;
 
 use strict;
 use warnings;
-use List::Util qw[min max];
 use Cwd;
-use POSIX qw(strftime);
 use DBI;
+use File::Basename;
+use List::Util qw[min max];
 
 use FindBin;
-use File::Basename;
-
 use lib "$FindBin::RealBin/lib";
-
 use vutil
     qw(get_config get_dbh set_statistics gen_exec_array_cb vs_db_insert);
 
-sub nowhitespace($) {
-    my $string = shift;
-    $string =~ s/\s+//g;
-    return $string;
-}
-
-print strftime( "Start: %F %T\n\n", localtime );
 
 my $argc = @ARGV;
 die "Usage: run_flankcomp.pl expects 4 arguments.\n"
@@ -48,7 +38,6 @@ my $totalReadReps      = 0;
 my $sth;
 my $sth1;
 my $sth2;
-my $sth3;
 
 my $mostReps    = 0;
 my $mostRefReps = 0;
@@ -56,6 +45,8 @@ my $maxRange    = 0;
 
 my $BREAK_SIZE = 4000;
 
+$write_dbh->do("PRAGMA foreign_keys = OFF");
+$write_dbh->do("PRAGMA synchronous = OFF");
 
 # clear database cluster tables
 $write_dbh->do( "DELETE FROM clusters" )
@@ -64,15 +55,12 @@ $write_dbh->do( "DELETE FROM clusters" )
 $write_dbh->do( "DELETE FROM clusterlnk" )
     or die "Couldn't do statement: " . $write_dbh->errstr;
 
-$write_dbh->do("PRAGMA foreign_keys = OFF");
-$write_dbh->do("PRAGMA synchronous = OFF");
 
 #############################################################################################
 
 print "Inserting into clusterlnk table.\n";
 
 open my $fh, "<$inputfile" or die $!;
-my $TEMPFILE;
 
 $sth = $write_dbh->prepare(q{INSERT INTO clusterlnk VALUES (?, ?, ?, 0, 0)})
     or die "Couldn't prepare statement: " . $write_dbh->errstr;
@@ -84,15 +72,11 @@ my $totalreps = 0;
 my @cluster_links;
 while (<$fh>) {
     $clusters_processed++;
-
     chomp;
-
     my @values = split( ',', $_ );
 
     foreach my $val (@values) {
-
         # insert clusterlnk entry
-
         $totalreps++;
 
         my $dir = q{'};
@@ -103,13 +87,7 @@ while (<$fh>) {
             my $cb   = gen_exec_array_cb( \@cluster_links );
             my $rows = vs_db_insert( $write_dbh, $sth, $cb,
                 "Error when inserting entries into our clusterlnk table.\n" );
-            if ($rows) {
-                @cluster_links = ();
-            }
-            else {
-                die
-                    "Something went wrong inserting, but somehow wasn't caught!\n";
-            }
+            @cluster_links = ();
         }
 
     }
@@ -121,18 +99,14 @@ if (@cluster_links) {
     my $cb   = gen_exec_array_cb( \@cluster_links );
     my $rows = vs_db_insert( $write_dbh, $sth, $cb,
         "Error when inserting entries into our clusterlnk table.\n" );
-    if ($rows) {
-        @cluster_links = ();
-    }
-    else {
-        die "Something went wrong inserting, but somehow wasn't caught!\n";
-    }
+    @cluster_links = ();
 }
+$sth->finish();
 
 #############################################################################################
 
 # Sync the DB so the next SELECTs work
-$write_dbh->do("PRAGMA synchronous = FULL");
+$write_dbh->do("PRAGMA synchronous = FULL"); # KA: i'm confident this doesnt matter
 $write_dbh->do("PRAGMA synchronous = OFF");
 
 print "Printing DNA and inserting into cluster table.\n";
@@ -142,19 +116,19 @@ $sth = $read_dbh->prepare(
     q{SELECT rid, flankleft, sequence, flankright, pattern, copynum, direction
     FROM refdb.fasta_ref_reps
     INNER JOIN clusterlnk ON rid=-repeatid
-    WHERE clusterid = ?}
-) or die "Couldn't prepare statement: " . $read_dbh->errstr;
+    WHERE clusterid = ?})
+    or die "Couldn't prepare statement: " . $read_dbh->errstr;
 $sth1 = $read_dbh->prepare(
     q{SELECT rid, dna, first, last, pattern, copynum, direction
     FROM fasta_reads
     INNER JOIN replnk ON fasta_reads.sid=replnk.sid
     INNER JOIN clusterlnk ON rid=repeatid
-    WHERE clusterid = ?}
-) or die "Couldn't prepare statement: " . $read_dbh->errstr;
+    WHERE clusterid = ?})
+    or die "Couldn't prepare statement: " . $read_dbh->errstr;
 $sth2 = $write_dbh->prepare(
-    q{INSERT INTO clusters(cid,minpat,maxpat,repeatcount,refcount)
-    VALUES(?,?,?,?,?)}
-) or die "Couldn't prepare statement: " . $write_dbh->errstr;
+    q{INSERT INTO clusters(cid, minpat, maxpat, repeatcount, refcount)
+    VALUES(?,?,?,?,?)})
+    or die "Couldn't prepare statement: " . $write_dbh->errstr;
 
 my $i;
 seek( $fh, 0, 0 );
@@ -282,12 +256,15 @@ if (@clusters) {
         "Error when inserting entries into clusters table.\n" );
     @clusters = ();
 }
+$sth->finish();
+$sth1->finish();
+$sth2->finish();
 
 # enable old settings
 $write_dbh->do("PRAGMA foreign_keys = ON");
 $write_dbh->do("PRAGMA synchronous = ON");
-
 $write_dbh->disconnect();
+
 $read_dbh->disconnect();
 
 # update the stats table
@@ -301,5 +278,11 @@ set_statistics({
 });
 
 print "Processing complete -- processed $clusters_processed cluster(s).";
-print strftime( "\nEnd: %F %T\n\n", localtime );
 
+1;
+
+sub nowhitespace {
+    my $string = shift;
+    $string =~ s/\s+//g;
+    return $string;
+}

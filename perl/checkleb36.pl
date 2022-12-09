@@ -6,9 +6,6 @@
 use strict;
 use warnings;
 use Cwd;
-use POSIX "strftime";
-
-print strftime( "Start: %F %T\n\n", localtime );
 
 die "Useage: checkl3b36.pl expects 1 argument.\n"
     unless @ARGV;
@@ -30,7 +27,7 @@ die "Exiting\n" if $tarball_count == 0;
 # enter dir
 chdir($tgz_dir);
 
-print "Checking read leb36 files...\n";
+print "Checking read leb36 files.\n";
 my %uhash = ();
 my $fh;
 foreach my $ifile (@tarballs) {
@@ -46,5 +43,3 @@ foreach my $ifile (@tarballs) {
     }
     close $fh;
 }
-
-print strftime( "\nEnd: %F %T\n\n", localtime );

@@ -12,9 +12,6 @@
 use strict;
 use warnings;
 use Cwd;
-use POSIX "strftime";
-
-print strftime( "Start: %F %T\n\n", localtime );
 
 die "Useage: run_proclu.pl expects 8 arguments.\n"
     unless scalar @ARGV >= 8;
@@ -88,7 +85,6 @@ while ((my $pid = wait) != -1) {
 }
 
 print "Processing complete -- processed $files_processed file(s).\n";
-print strftime( "\nEnd: %F %T\n\n", localtime );
 
 1;
 

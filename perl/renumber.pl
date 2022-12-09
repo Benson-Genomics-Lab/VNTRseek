@@ -6,9 +6,6 @@ use warnings;
 use FileHandle;
 use Getopt::Std;
 use File::Copy;
-use POSIX "strftime";
-
-print strftime("Start: %F %T\n\n", localtime);
 
 my %options;
 getopts( 'rn', \%options );
@@ -187,4 +184,3 @@ else {
 }
 
 print "$UNR records processed\n";
-print strftime("\nEnd: %F %T\n\n", localtime);
