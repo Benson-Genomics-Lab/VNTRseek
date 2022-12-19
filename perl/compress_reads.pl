@@ -6,7 +6,7 @@ use List::Util qw(all any);
 use DBI;
 
 use FindBin;
-use lib "$FindBin::RealBin";
+use lib "$FindBin::RealBin/lib";
 use Product;
 
 use Time::HiRes qw(time tv_interval);
