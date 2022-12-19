@@ -1,7 +1,7 @@
 # Dec, 2022
 - fixed imports in `compress_reads.pl`
 
-# Version 2.0.2 - Nov, 2022
+# Version 2.0.2 - Nov 3, 2022
 
 - added `CLEANUP` option to remove intermediates on success
 - changed `DBSUFFIX` to `RUN_NAME`
