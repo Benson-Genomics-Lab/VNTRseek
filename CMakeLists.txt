@@ -48,7 +48,6 @@ GCC_REQ_VER(4.1.2)
 GLIBC_REQ_VER(2.14)
 PERL_REQ_VER(5.8.8)
 SAMTOOLS_REQ_VER(1.8)
-BEDTOOLS_REQ_VER(2.15.0)
 find_cpanm()
 
 message(STATUS "Your processor is ${CMAKE_SYSTEM_PROCESSOR} and you are running ${CMAKE_SYSTEM_NAME}. This means we'll download ${TRFDLName}")
