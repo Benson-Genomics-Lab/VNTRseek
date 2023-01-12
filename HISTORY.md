@@ -33,7 +33,7 @@
 - Removed file greps from `pcr_dup.pl`
 - Removed some non-capturing grouping from greps in insert_reads.pl
 - Wrote ouput structure description
-- internalize edlib
+- Internalized edlib
 
 # Dec 19, 2022
 
