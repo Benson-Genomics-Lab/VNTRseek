@@ -10,7 +10,7 @@ use File::Basename;
 
 use FindBin;
 use lib "$FindBin::RealBin/lib";
-use vutil qw(trim get_config get_dbh set_statistics);
+use vutil qw(get_config get_dbh set_statistics);
 
 # Arguments
 my $argc = @ARGV;
@@ -47,7 +47,6 @@ $sth->execute() or die "Couldn't execute: " . $sth->errstr;
 print "Best best best records: $num\n";
 
 my $oldref  = -1;
-my $oldread = -1; # KA: Not used
 my $i = 0;
 my $nrefs = 0;
 
@@ -63,7 +62,6 @@ while ( my @data = $sth->fetchrow_array() ) {
     $data[8] =~ s/\s+//g;
     print $fh " $data[6] $data[7] $data[8]\n";
     $oldref  = $data[0];
-    $oldread = $data[1];
     $i++;
 }
 close($fh) if ($fh);

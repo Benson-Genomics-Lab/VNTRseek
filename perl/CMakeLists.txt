@@ -2,8 +2,8 @@
 FILE(GLOB perlscripts RELATIVE "${CMAKE_CURRENT_SOURCE_DIR}"
     "${CMAKE_CURRENT_SOURCE_DIR}/*.pl")
 
-FILE(GLOB perlmods RELATIVE "${CMAKE_CURRENT_SOURCE_DIR}"
-    "${CMAKE_CURRENT_SOURCE_DIR}/lib/*.pl")
+# FILE(GLOB perlmods RELATIVE "${CMAKE_CURRENT_SOURCE_DIR}"
+#    "${CMAKE_CURRENT_SOURCE_DIR}/lib/*.pl")
 
 # Install perl scripts.
 INSTALL(PROGRAMS ${perlscripts}

@@ -121,7 +121,7 @@ for (my $i = 0; $i < $cpucount; $i++) { $p{fork_proclu()} = 1;}
 # wait for processes to finish and then fork new ones
 while ((my $pid = wait) != -1) {
 
-    # check return value   # i don't think these do anything since it only dies or exits 0.
+    # check return value
     my ($rc, $sig, $core) = ($? >> 8, $? & 127, $? & 128);
     if ($core) {
         warn "proclu process $pid dumped core\n";

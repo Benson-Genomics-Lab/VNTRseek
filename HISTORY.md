@@ -1,4 +1,45 @@
-# Version 2.0.2 - Jul 27, 2022
+# Version 2.0.3 - dev
+
+- added proper default in `defaults.vs.cnf` for `REFERENCE_INDIST_PRODUCE`
+  - fixed blank entry in complete `$OUTPUT_DIR/vntr_${RUN_NAME}` config
+- fixed sqlite version printing
+- now removes incomplete `encoded_reads` table
+- removed ALGNURL field from vcf output
+- added stats time and date entries for step 20 `CONVERSION_AND_READ_COMPRESSION`
+- fixed GEN_CONFIG option
+- Fixed trf2proclu
+- Revised updaterefs.pl
+  - READ_LENGTH wired in
+  - print_latex, print_distr, commify, nowhitespace removed
+    - latex, graph production code extracted
+  - removed `VNTRPIPE_` from database in vcf output
+  - removed SERVER argument
+- Isolated non-pipeline data summary scripts into perl/lib/Summarize
+- Re-configured input file parsing
+  - support .fa, .fq, .sam, .cram extensions
+  - allow mixing .fa and .fasta, .fq and .fastq
+- Added cram handling to documentation
+- Dropped bedtools requirement, it's not used
+- Changed default `OUTPUT_DIR` to `.`
+  - simplify output structure for simple use cases
+- Changed reduced_db.sql script calling to be from DBI
+  - extracted `ATTACH DB` line to remove renaming step
+    - previously created relatively (meaning in install dir, probably not writable!)
+    - using final db name will be absolute (meaning in output_dir)
+- Added last last last thing to migrate date and time stamps for step 20 to reduced database
+- Merged `extra_index.pl` into `pcr_dup.pl`
+  - Merged step 15 into 14 in `vntrseek.pl`
+  - pending `stats` table adjustment for defunct `INDEX_PCR` stats
+- Removed file greps from `pcr_dup.pl`
+- Removed some non-capturing grouping from greps in insert_reads.pl
+- Wrote ouput structure description
+- internalize edlib
+
+# Dec 19, 2022
+
+- fixed imports in `compress_reads.pl`
+
+# Version 2.0.2 - Nov 3, 2022
 
 - added `CLEANUP` option to remove intermediates on success
 - changed `DBSUFFIX` to `RUN_NAME`

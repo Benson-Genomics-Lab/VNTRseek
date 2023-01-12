@@ -15,7 +15,7 @@
 #$ -e test.err
 
 # Email for notifying of events
-#$ -M kyleraka@bu.edu
+#$ -M your_email@domain.com
 
 # Events to notify for; (b)egin, (e)nd, (a)bort
 #$ -m bea

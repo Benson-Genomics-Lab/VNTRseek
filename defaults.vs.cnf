@@ -17,7 +17,7 @@ REFERENCE=
 
 # output directory (must be writable and executable!)
 # eg, /output
-OUTPUT_DIR=output
+OUTPUT_DIR=.
 
 # server name, used for generating html links
 # eg, orca.bu.edu
@@ -61,9 +61,14 @@ STRIP_454_KEYTAGS=0
 KEEPPCRDUPS=1
 
 # Force reinitialization of the reference set database
-# eg, 0 = no 
+# eg, 0 = no
 # eg, 1 - yes
 REDO_REFDB=0
+
+# Generate a file of indistinguishable references
+# eg, 0 = no
+# eg, 1 - yes
+REFERENCE_INDIST_PRODUCE=0
 
 # set this to the number of processors on your system
 # (or less if sharing the system with others or RAM is limited)

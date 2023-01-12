@@ -1,10 +1,10 @@
 SET(PACKAGE VNTRseek)
 SET(PACKAGE_NAME VNTRseek)
 
-cmake_minimum_required(VERSION 3.0)
+cmake_minimum_required(VERSION 3.2)
 # Set current VNTRseek version. Not user configurable
-SET(VNTRVer "2.0.2")
-project(VNTRseek VERSION 2.0.2 LANGUAGES C)
+SET(VNTRVer "2.0.3-dev")
+project(VNTRseek VERSION 2.0.3 LANGUAGES C)
 # project(VNTRseek VERSION ${VNTRVer} LANGUAGES C)
 
 SET(InstallSuffix "vntrseek${VNTRVer}")
@@ -98,10 +98,11 @@ install(CODE "
 SET(MISC_FILES
     README.md
     RUNNING.md
+    RESULTS.md
     HISTORY.md
     COPYING
     REFERENCE_FORMATS
-    reduced_db.sql
+    reduce_db.sql
     sqlite_schema.sql
     cpanfile
     cpanfile.snapshot

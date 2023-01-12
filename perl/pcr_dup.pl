@@ -17,6 +17,7 @@ my $argc = @ARGV;
 die "Usage: pcr_dup.pl expects 6 arguments.\n"
     unless $argc >= 6;
 
+# Arguments
 my $curdir       = getcwd();
 my $indexfolder  = $ARGV[0];
 my $out_folder   = $ARGV[1];
@@ -32,25 +33,82 @@ my %stats;
 
 my $RECORDS_PER_INFILE_INSERT = 100000;
 my $files_to_process = 100;    # number of files to process in one batch
-my $files_processed  = 0;      # files processed
-my %p;                         # associates forked pids with output pipe pids
 
-# process
-print "Reading: $indexfolder\n";
 
-opendir( my $dir, $indexfolder );
-my @indexfiles = grep( /\.(?:seq)$/, readdir($dir) ); # KA: grep grep grep
-closedir($dir);
+### Indexing
+my $sql_clause = q{
+  FROM map JOIN rank using(refid, readid)
+      JOIN rankflank using(refid, readid)
+      JOIN replnk ON replnk.rid=map.readid
+      JOIN fasta_reads on fasta_reads.sid=replnk.sid
+  ORDER BY map.refid, map.readid};
+my ($num) = $dbh->selectrow_array( q{SELECT COUNT(*) } . $sql_clause )
+    or die "Couldn't execute statement: " . $dbh->errstr;
+my $sth = $dbh->prepare(
+    q{SELECT map.refid, map.readid, replnk.sid, replnk.first, replnk.last,
+      replnk.copynum, replnk.patsize, replnk.pattern, fasta_reads.dna}
+        . $sql_clause )
+    or die "Couldn't prepare statement: " . $dbh->errstr;
 
-my $numfiles = @indexfiles;
-print "$numfiles supported files found in $indexfolder\n";
+$sth->execute() or die "Couldn't execute: " . $sth->errstr;
+
+print "Best best best records: $num\n";
+
+my $oldref  = -1;
+my $i = 0;
+my $nrefs = 0;
+
+my $fn;
+my $fh;
+my @refindices = ();
+while ( my @data = $sth->fetchrow_array() ) {
+    if ( $data[0] != $oldref ) {
+        if ( $i != 0 ) { close($fh); }
+        $nrefs++; # Counts the number of .seq files
+        open $fh, ">$indexfolder/$data[0].seq" or die $!;
+        push @refindices, $data[0];
+    }
+    print $fh "$data[1] $data[2] $data[3] $data[4]";
+    printf $fh " %.2lf", $data[5];
+    $data[8] =~ s/\s+//g;
+    print $fh " $data[6] $data[7] $data[8]\n";
+    $oldref  = $data[0];
+    $i++;
+}
+close ($fh) if ($fh);
+$sth->finish();
+$dbh->disconnect();
+
+print "Indexing complete, $nrefs files created.\n";
+
+
+### Calculating and Removing
+my $numfiles = @refindices;
 $files_to_process = $numfiles if $files_to_process > $numfiles;
+
+my $files_processed  = 0;      # files processed
+my %p;                         # forked pids
 
 # fork as many new processes as there are CPUs
 for ( my $i = 0; $i < $cpucount; $i++ ) { $p{ fork_pcrdup() } = 1 }
 
 # wait for processes to finish and then fork new ones
 while ( ( my $pid = wait ) != -1 ) {
+    # check return value
+    my ($rc, $sig, $core) = ($? >> 8, $? & 127, $? & 128);
+    if ($core) {
+        warn "pcr_dup process $pid dumped core\n";
+        exit(1000);
+    }
+    elsif ($sig == 9) {
+        warn "pcr_dup process $pid was murdered!\n";
+        exit(1001);
+    }
+    elsif ($rc != 0) {
+        warn "pcr_dup process $pid has returned $rc!\n";
+        exit($rc);
+    }
+
     die "Unrelated process $pid finished?\n" unless $p{$pid};
 
     # one instance has finished processing -- start a new one
@@ -60,11 +118,8 @@ while ( ( my $pid = wait ) != -1 ) {
 print "Processing complete -- processed $files_processed cluster(s).\n";
 
 
-# load results
-print "Reading: $indexfolder\n";
-
 # first count the intersect before pcr dup
-my $sth = $dbh->prepare(q{SELECT count(*)
+$sth = $dbh->prepare(q{SELECT count(*)
     FROM rank JOIN rankflank using(refid, readid)})
     or die "Couldn't prepare statement: " . $dbh->errstr;
 $sth->execute() or die "Cannot execute: " . $sth->errstr();
@@ -88,74 +143,68 @@ $dbh->do("PRAGMA foreign_keys = OFF");
 $dbh->do("PRAGMA synchronous = OFF");
 
 
-opendir( $dir, $indexfolder );
-@indexfiles = grep( /\.(?:pcr_dup)$/, readdir($dir) ); # KA: more grepps
-closedir($dir);
+# load results
+print "Processing pcr_dup.exe output\n";
 
-my $i       = 0;
+$i          = 0;
 my $deleted = 0;
 my @to_delete;
-foreach my $ifile (@indexfiles) {
+foreach my $ref (@refindices) {
+    $ifile = "$ref.seq.pcr_dup";
 
     $i++;
+    my $filedeleted = 0;
 
-    # KA: we already know this regex will match, no need for the if
-    if ( $ifile =~ /(\d+)\.seq\.pcr_dup/ ) {
+    if ( open( my $fh, "$indexfolder/$ifile" ) ) {
 
-        my $ref         = $1;
-        my $filedeleted = 0;
+        my %RHASH = ();
 
-        if ( open( my $fh, "$indexfolder/$ifile" ) ) {
-
-            my %RHASH = ();
-
-            # added at 1.02, to eliminate most connected nodes preferentiably
-            my %RCOUNTS = ();
-            my %NEWIDS  = ();
-            while (<$fh>) {
-                if (/^compare: (\d+) (\d+) (\d+) (\d+)\|(\d+)/) {
-                    $RCOUNTS{$1}++;
-                    $RCOUNTS{$5}++;
-                }
+        # added at 1.02, to eliminate most connected nodes preferentiably
+        my %RCOUNTS = ();
+        my %NEWIDS  = ();
+        while (<$fh>) {
+            if (/^compare: (\d+) (\d+) (\d+) (\d+)\|(\d+)/) {
+                $RCOUNTS{$1}++;
+                $RCOUNTS{$5}++;
             }
-            my @keys = sort { $RCOUNTS{$a} <=> $RCOUNTS{$b} or $a <=> $b }
-                keys %RCOUNTS;
-            my $iditer = 1;
-            foreach my $key (@keys) { $NEWIDS{$key} = $iditer; $iditer++; }
-
-            seek $fh, 0, 0;
-            while (<$fh>) {
-                if (/^compare: (\d+) (\d+) (\d+) (\d+)\|(\d+)/) {
-
-                    my $read;
-                    if ( $NEWIDS{$1} > $NEWIDS{$5} ) {
-                        $read = $1;
-                    }
-                    elsif ( $NEWIDS{$1} < $NEWIDS{$5} ) {
-                        $read = $5;
-                    }
-                    else {
-                        $read = max( $1, $5 );
-                    }
-
-                    if ( !exists $RHASH{$read} ) {
-                        $deleted++;
-                        $filedeleted++;
-                        push @to_delete, [ $ref, $read ];
-
-                        if ( $deleted % $RECORDS_PER_INFILE_INSERT == 0 ) {
-                            my $cb = gen_exec_array_cb( \@to_delete );
-                            my $rows = vs_db_insert( $dbh, $sth, $cb,
-                                "Error when inserting entries into temporary pcr duplicates table.\n");
-                            @to_delete = ();
-                        }
-                        $PENTRIES{ $ref . "_" . $read } = 1;
-                    }
-                    $RHASH{$read} = 1;
-                }
-            }
-            close($fh);
         }
+        my @keys = sort { $RCOUNTS{$a} <=> $RCOUNTS{$b} or $a <=> $b }
+            keys %RCOUNTS;
+        my $iditer = 1;
+        foreach my $key (@keys) { $NEWIDS{$key} = $iditer; $iditer++; }
+
+        seek $fh, 0, 0;
+        while (<$fh>) {
+            if (/^compare: (\d+) (\d+) (\d+) (\d+)\|(\d+)/) {
+
+                my $read;
+                if ( $NEWIDS{$1} > $NEWIDS{$5} ) {
+                    $read = $1;
+                }
+                elsif ( $NEWIDS{$1} < $NEWIDS{$5} ) {
+                    $read = $5;
+                }
+                else {
+                    $read = max( $1, $5 );
+                }
+
+                if ( !exists $RHASH{$read} ) {
+                    $deleted++;
+                    $filedeleted++;
+                    push @to_delete, [ $ref, $read ];
+
+                    if ( $deleted % $RECORDS_PER_INFILE_INSERT == 0 ) {
+                        my $cb = gen_exec_array_cb( \@to_delete );
+                        my $rows = vs_db_insert( $dbh, $sth, $cb,
+                            "Error when inserting entries into temporary pcr duplicates table.\n");
+                        @to_delete = ();
+                    }
+                    $PENTRIES{ $ref . "_" . $read } = 1;
+                }
+                $RHASH{$read} = 1;
+            }
+        }
+        close($fh);
     }
 }
 
@@ -309,7 +358,7 @@ sub fork_pcrdup {
     $until = $numfiles - 1 if $until > ( $numfiles - 1 );
 
     #my $output_prefix = "$root/$files_processed-$until";
-    my @file_slice = @indexfiles[ ($files_processed) .. ($until) ];
+    my @file_slice = @refindices[ ($files_processed) .. ($until) ];
     my $file_slice_count = @file_slice;
     $files_processed += $file_slice_count;
 
@@ -319,7 +368,7 @@ sub fork_pcrdup {
     if ( $pid != 0 ) { return $pid;} # parent
     # child
     foreach (@file_slice) {
-        system("./pcr_dup.exe $indexfolder/${_} $indexfolder/${_}.pcr_dup"
+        system("./pcr_dup.exe ${_}.seq ${_}.seq.pcr_dup"
             . " 0 2 $KEEPPCRDUPS > /dev/null");
     }
     # child must never return

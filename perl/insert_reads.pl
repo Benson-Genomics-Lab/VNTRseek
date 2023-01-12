@@ -93,8 +93,8 @@ print "Reading index files and storing relevant entries in database.\n";
 # KA: More file greps
 opendir( DIR, $indexfolder );
 my @filelist   = readdir(DIR);
-my @indexfiles = sort grep( /\.(?:index\.renumbered)$/, @filelist );
-my @readfiles  = sort grep( /\.(?:reads)$/, @filelist );
+my @indexfiles = sort grep( /\.index\.renumbered$/, @filelist );
+my @readfiles  = sort grep( /\.reads$/, @filelist );
 closedir(DIR);
 
 my $indexcount = @indexfiles;
@@ -230,6 +230,7 @@ for my $read_file (@readfiles) {
         ( $headstr, $dnastr ) = split "\t", $line;
 
         # Special last line
+        # KA: This is not used anymore
         if ( $headstr eq 'totalreads' ) {
             $totalReads += $dnastr;
 

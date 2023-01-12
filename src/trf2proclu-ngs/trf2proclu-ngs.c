@@ -927,8 +927,19 @@ int main( int argc, char **argv ) {
         // We've seen this header before. Only increment ge7ReadCount
         // if value in hash was not already set to 1.
         else {
-            ge7ReadCount += ( *hval == 0 );
-            *hval = 1;
+        // We’ve seen this header before. Only increment ge7ReadCount
+        // if value in hash was not already set to 1.
+        // Fixed by G. Benson 11.12.22 to set hval correctly, i.e.,
+        //       repeat has patternsize ≥ 7
+        //       and is spanning
+        // Then use hval to increment ge7ReadCount
+            if ( *hval == 0 ) {
+                *hval = ( ( repPtr->patsize >= 7 ) && ( repPtr->spanning ) );
+                ge7ReadCount += *hval;
+            }
+
+            //ge7ReadCount += ( *hval == 0 );
+            //*hval = 1;
         }
 
         TRCount++;
