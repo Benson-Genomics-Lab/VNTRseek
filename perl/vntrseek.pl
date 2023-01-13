@@ -37,7 +37,7 @@ use POSIX "strftime";
 use Getopt::Long "GetOptionsFromArray";
 use List::Util qw(min max);
 use DBI;
-use DBD:SQLite;
+use DBD::SQLite;
 use FindBin;
 use lib ( "$FindBin::RealBin/lib", "$FindBin::RealBin/local/lib/perl5" );
 use vutil
@@ -667,6 +667,8 @@ if ( $STEP == 14 ) {
         $opts{'KEEPPCRDUPS'});
     FlagError('calculating PCR duplicates');
 
+    remove_tree("$processedf/best", {safe => 1});
+
     FinishStep('INDEX_PCR');
     FinishStep('PCR_DUP');
 }
@@ -743,7 +745,6 @@ if ( $STEP == 20 ) {
 
     # Cleanup
     print "File Cleanup Time!\n";
-    remove_tree("$processedf/best", {safe => 1});
     remove_tree("$processedf/out", {safe => 1});
     if ($opts{'CLEANUP'}) {
         remove_tree($trff, {safe => 1});

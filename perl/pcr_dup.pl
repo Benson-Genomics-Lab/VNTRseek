@@ -150,7 +150,7 @@ $i          = 0;
 my $deleted = 0;
 my @to_delete;
 foreach my $ref (@refindices) {
-    $ifile = "$ref.seq.pcr_dup";
+    my $ifile = "$ref.seq.pcr_dup";
 
     $i++;
     my $filedeleted = 0;
@@ -368,7 +368,7 @@ sub fork_pcrdup {
     if ( $pid != 0 ) { return $pid;} # parent
     # child
     foreach (@file_slice) {
-        system("./pcr_dup.exe ${_}.seq ${_}.seq.pcr_dup"
+        system("./pcr_dup.exe $indexfolder/${_}.seq $indexfolder/${_}.seq.pcr_dup"
             . " 0 2 $KEEPPCRDUPS > /dev/null");
     }
     # child must never return
