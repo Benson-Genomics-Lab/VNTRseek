@@ -1,4 +1,4 @@
-# Version 2.0.3 - dev
+# Version 2.0.3 - Jan 25, 2023
 
 - added proper default in `defaults.vs.cnf` for `REFERENCE_INDIST_PRODUCE`
   - fixed blank entry in complete `$OUTPUT_DIR/vntr_${RUN_NAME}` config
@@ -36,7 +36,6 @@
 - Internalized edlib
 
 # Dec 19, 2022
-
 - fixed imports in `compress_reads.pl`
 
 # Version 2.0.2 - Nov 3, 2022
