@@ -33,6 +33,10 @@ It has fewer tables, compressed fasta reads,
 and if the input used standard illumina headers,
 shortened headers.
 
+The `{RUN_NAME}.vs.cnf` contains a config containing the 
+last settings used for this data set. It can be provided with
+the `--CONFIG` option to reproduce the last run.
+
 The vcf files contain the called VNTRs and any ref TRs with support,
 respectively.
 

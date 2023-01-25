@@ -669,7 +669,6 @@ if ( $STEP == 14 ) {
 
     remove_tree("$processedf/best", {safe => 1});
 
-    FinishStep('INDEX_PCR');
     FinishStep('PCR_DUP');
 }
 

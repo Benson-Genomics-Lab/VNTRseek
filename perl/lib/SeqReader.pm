@@ -159,7 +159,7 @@ sub _init_input_list {
         $input_format eq "cram" ) {
 
         @filenames = $self->init_bam( files => \@filenames );
-        print "BAM input. Will need to process "
+        print "SAM/BAM/CRAM input. Will need to process "
             . scalar(@filenames)
             . " sets of reads from file.\n";
     }

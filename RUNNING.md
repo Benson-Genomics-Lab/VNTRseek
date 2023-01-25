@@ -1,7 +1,7 @@
 # How to
 
 1. [Run VNTRseek](#Run-VNTRseek)
-   1. [v2.0.2](#v2.0.2)
+   1. [v2.0.3](#v2.0.3)
       - [the Long Way](#the-Long-Way)
       - [the Short Way](#the-Short-Way)
    1. [v2.0.1](#v2.0.1)
@@ -11,27 +11,44 @@
       - [in a Configuration File](#in-a-Configuration-File)
       - [for NPROCESSES](#for-NPROCESSES)
 1. [Use qsub](#Use-qsub)
+1. [Use Cram Files](#Use-Cram-Files)
 
 ## Run VNTRseek
 
-VNTRseek takes as input fasta and bam formatted files. All such files in the folder
-provided to the `--INPUT_DIR` option are processed. A database is produced, along with
-several other ourput files. Older versions leave many intermediate files; v2.0.2 allows
+You'll need an environment with samtools, Perl (>= 5.24) and SQLite (>= 3.37).
+
+VNTRseek takes as input fasta, fastq, sam, bam, and cram formatted files.
+Files in the folder provided to the `--INPUT_DIR` option are processed.
+A database is produced, along with several other output files.
+Older versions leave many intermediate files; versions >= 2.0.2 allow
 for the intermediate files to be deleted on a successful run.
 
 Different versions have different option handling, per the latest development.
 Make sure you're reading the section for the relevant version.
 
-You'll need an environment with samtools, bedtools, Perl (>= 5.24)
-and SQLite (>= 3.37).
-
-VNTRseek must be run with multiple processes via the `--NPROCESSES` option.
+VNTRseek must be run with multiple processes (altered via the `--NPROCESSES` option).
 This is different from _processors_; there is internal adjustment necessary
 for parallelized tasks, see the options sections [for NPROCESSES]($for-NPROCESSES)
 for more.
 
+### Input_Dir
 
-## v2.0.2
+Only one format is processed for a run.
+The input reader searches `--INPUT_DIR` for each format and uses the first one found.
+The current search order is `fasta, fastq, sam, bam, cram`.
+Fastas take both `fa` and `fasta` extension;
+similarly fastqs include both `fq` and `fastq`.
+
+For example, `--INPUT_DIR` contains three `.fa`s, five `.fasta`s,
+two `.fastq`s, and four `.cram`s; the eight fastas would be processed.
+
+Further, if the first (alphabetically) processed file is compressed, it
+will attempt to decompress all processed files accordingly.
+Supported compressions are `targz gz tarbzip bzip tarxz xz`.
+Mixed compressions will result in an error.
+
+
+## v2.0.3
 
 The minimum options required for running are
 
@@ -44,7 +61,7 @@ The minimum options required for running are
   - all such in the folder will be analyzed
 
 Paths can be relative. Be sure to consider [more options](#Specify-Options),
-particularly `OUTPUT_DIR` and `NPROCESSES`.
+particularly `OUTPUT_DIR` (`.` by default) and `NPROCESSES`.
 
 A database `$RUN_NAME.db` and other output files (including a terse config)
 will be produced in
@@ -72,6 +89,7 @@ run unless the error is cleared via a step instruction of 100. This diverts from
 pipeline and exits, so no other steps can be specified.
 It needs all information necessary to locate the run database; this is `--RUN_NAME` and,
 if you specified one, the `--OUTPUT_DIR`.
+
 
 ### the Short Way
 
@@ -103,141 +121,18 @@ We do not recommend altering the underlying `default.vs.cnf` unless you're
 certain you know everything it affects.
 
 
-## v2.0.1
-
-The minimum arguments required for running are
-
-- the `--DBSUFFIX`,
-  - a name used for output files (_not_ a file prefix)
-- the `--REFERENCE`,
-  - a file prefix to reference files for input sequences
-- and the `--INPUT_DIR` options.
-  - directory containing fasta or bam files
-  - all such in the folder will be analyzed
-
-Paths can be relative.
-
-A database `$DBSUFFIX.db` and other output files (including a terse config)
-will be produced in
-```
-$OUTPUT_ROOT/vntr_$DBSUFFIX/
-```
-
-Example command line:
-
-```sh
-path/to/vntrseek.pl --HELP
-path/to/vntrseek.pl 0 19 --DBSUFFIX "example" --REFERENCE "exGenome/prefix" --INPUT_DIR "exFastas/"
-path/to/vntrseek.pl 100 --DBSUFFIX "example" # this clears any error codes
-
-path/to/vntrseek.pl 0 19 --CONFIG "exFolder/config.cnf"
-path/to/vntrseek.pl --GEN_CONFIG "exFolder/config.cnf"
-```
-
-Be mindful of [other options](#Specify-Options).
-A start and end step (inclusive) must be provided to run the pipeline itself,
-beginning at 0 and ending with 19 for the full pipeline.
-
-The last error encountered must be cleared to resume a run via a step instruction of 100.
-It needs all information necessary to locate the run database;
-this is `--DBSUFFIX` and `--OUTPUT_ROOT` if originally specified.
-
-The `--CONFIG` option can take a file with any command line options.
-All minimum options must still be provided between the config and command line.
-See how to [specify options in a configuration file](#in-a-Configuration-File) for an example.
-You can use the `--GEN_CONFIG` option with a path (file or directory)
-to generate a config file.
-Other options specified at the command line _will override anything_ in the config file.
-
-
-## v2.0.0
-
-The minimum arguments required for running are
-
-- the `--DBSUFFIX`,
-  - a name used for output files (_not_ a file prefix)
-- the `--REFERENCE`,
-  - file prefix for the reference files
-- the `--INPUT_DIR`,
-  - directory containing fasta or bam files
-  - all such in the folder will be analyzed
-- the `--OUTPUT_ROOT`,
-  - directory to contain the output directory
-  - useful for grouping multiple runs
-- the `--TMPDIR`,
-  - directory for writing temporary working files
-- the `--SERVER`,
-  - used in writing output for viewing with external tools
-- and the `--NPROCESSES` options.
-  - number of child processes to spawn for pooled tasks
-
-Paths must be absolute.
-
-A database `$DBSUFFIX.db` and other output files will be produced in
-```
-$OUTPUT_ROOT/vntr_$DBSUFFIX/
-$OUTPUT_ROOT/vntr_$DBSUFFIX/result/
-```
-
-Example command line:
-
-```sh
-path/to/vntrseek.pl 0 19 --DBSUFFIX "example" --REFERENCE "exGenome" --INPUT_DIR "exFastas"
-  --OUTPUT_ROOT "exOut" --TMPDIR "exTmp" --SERVER "ex.am.ple" --NPROCESSES 1
-path/to/vntrseek.pl 0 19 --DBSUFFIX "example"
-
-path/to/vntrseek.pl 100 --DBSUFFIX "example" --OUTPUT_ROOT "exOut" # this clears any error codes
-```
-
-Be mindful of [other options](#Specify-Options).
-A start and end step (inclusive) must be provided to run the pipeline itself,
-beginning at 0 and ending with 19 for the full pipeline.
-
-The last error encountered must be cleared to resume a run via a step instruction of 100.
-This needs all information necessary to locate the run database;
-this is `--DBSUFFIX` and `--OUTPUT_ROOT`.
-
-The pipeline will automatically look for [a configuration file](#in-a-Configuration-File)
-with the name `<DBSUFFIX>.vs.cnf` in the directory where vntrseek was called.
-It can contain any running options. It will overwrite whatever is there with
-a new config listing the options used for the run and verbose comments.
-
-
 ## Specify Options
 
 Options can be specified on the command line or from a configuration file.
 An option can be specified in both places, in which case
 the command line value will be used.
 
-For v2.0.1 and v2.0.2, the config path is specified with the `--CONFIG` option,
+The config path is specified with the `--CONFIG` option,
 and can contain _all_ information for running. Paths can be relative, and `--GEN_CONFIG`
 produces a default config at a specified path.
 
-For v2.0.0, the config is located based on `--DBSUFFIX`, making it a compulsory
-command line argument; all else can be in the config. Paths must be absolute, and the
-config is written over every time with a complete, clean, commented copy of the latest settings.
-
-Here is a brief overview of recent changes to options.
-
-| Older | v2.0.0 | v2.0.1 | v2.0.2 |
-| --- | --- | --- | --- |
-| DBSUFFIX | DBSUFFIX | DBSUFFIX | RUN_NAME |
-| FASTA_DIR | INPUT_DIR | INPUT_DIR | INPUT_DIR |
-| OUTPUT_ROOT | OUTPUT_ROOT | OUTPUT_ROOT | OUTPUT_DIR |
-| TMPDIR | TMPDIR | TMPDIR | _removed_ |
-| CLEAN | CLEAN | CLEAN | _removed_ |
-| | | CONFIG | CONFIG |
-| | | GEN_CONFIG | GEN_CONFIG |
-| | | | CLEANUP |
-
-For backward compatability, old names of options are converted to the new names, and
-removed options are ignored.
-
 
 ### on the Command Line
-
-The description here applies to v2.0.2, though most of the options are also
-available for previous versions, **see `--HELP` option message**.
 
 ```
 # From --HELP message
@@ -275,7 +170,7 @@ OPTIONS:
         --MAX_FLANK_CONSIDERED        maximum flank length used in flank alignments, set high to use full flank (default 50)
         --MIN_SUPPORT_REQUIRED        minimum number of mapped reads which agree on copy number to call an allele (default 2)
 
-        --NPROCESSES                  number of processors to use on your system (default 2)
+        --NPROCESSES                  number of processors to use on your system (default, minimum 2)
         --CONFIG                      path to file with any of the above options. Command line option only.
         --GEN_CONFIG                  set with a path to generate a clean config. Command line option only.
         --CLEANUP                     clear intermediate files if run successful. Command line option only.
@@ -302,20 +197,17 @@ config file in the ouput folder.
 
 ### in a Configuration File
 
-In version 2.0.0, if `--DBSUFFIX <run_name>` is provided, all other options can be kept
-in `<run_name>.vs.cnf` in the same place where vntrseek gets called.
-
-In versions >=2.0.1, the config path is passed to `--CONFIG <config_path>`,
+The config path is passed to `--CONFIG <config_path>`,
 and can contain all options for running.
 A config can be generated using the `--GEN_CONFIG <config_path>` option
 and a separate, complete configuration of every
-run will be generated in the output folder.
+run will be generated in the `$OUTPUT_DIR/vntr_$RUN_NAME/` folder.
 
 Example Partial Config:
 ```sh
-REFERENCE=path/to/reference/folder
-INPUT_DIR=path/to/fastas/or/bams
-OUTPUT_DIR=path/for/output
+REFERENCE=path/to/reference/base_name
+INPUT_DIR=path/to/folder/with/fastas_or_bams/
+OUTPUT_DIR=path/for/output/
 
 PLOIDY=2
 IS_PAIRED_READS=1
@@ -331,8 +223,6 @@ Modification of this file is not recommended.
 
 ### for NPROCESSORS
 
-For versions >=2.0.1:
-
 Perl's `fork` facility does not respect environment variables limiting resources.
 So 9 processes will try to use 9 processors, even if the environment only allows 8.
 A parent and 8 children will use 9 processes.
@@ -341,11 +231,9 @@ while it waits. There will be small windows in which 9 processors are used,
 but largely only 8 will be active.
 
 
-For VNTRseek versions >=2.0.1, specifying 8 processes
+Specifying 8 processes
 will guarantee only 8 processors are ever used; 7 children will be
 spawned during paralellized tasks.
-For version 2.0.0, specifying 8 processes will result in 9 processes; 8 children will be spawn.
-This means 9 processors might be used.
 
 This difference is important when operating on clusters where jobs are managed by a
 grid engine (this is you if you use `qsub`).
@@ -419,3 +307,17 @@ Here are a few relevant ones.
             multiprocessing environment and we request 8 processors.
 ```
 
+## Use Cram Files
+
+The samtools `view` command reads cram files based
+on the metadata within the cram header.
+Since VNTRseek uses this utility,
+cram files are intrinsically supported
+so long as the environment variables `REF_PATH` and `REF_CACHE` are correct.
+
+See [the samtools doc](https://www.htslib.org/workflow/cram.html#the-ref_path-and-ref_cache)
+for information on the `REF_PATH` and `REF_CACHE` environment variables.
+If you downloaded a cram without its reference files, be aware that
+samtools may attempt an internet connection to retrieve them.
+This process may result in a large file cache being created
+and significant slow down based on the network.
