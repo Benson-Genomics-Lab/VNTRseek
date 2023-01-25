@@ -1,10 +1,10 @@
 SET(PACKAGE VNTRseek)
 SET(PACKAGE_NAME VNTRseek)
 
-cmake_minimum_required(VERSION 3.0)
+cmake_minimum_required(VERSION 3.2)
 # Set current VNTRseek version. Not user configurable
-SET(VNTRVer "2.0.2")
-project(VNTRseek VERSION 2.0.2 LANGUAGES C)
+SET(VNTRVer "2.0.3")
+project(VNTRseek VERSION 2.0.3 LANGUAGES C)
 # project(VNTRseek VERSION ${VNTRVer} LANGUAGES C)
 
 SET(InstallSuffix "vntrseek${VNTRVer}")
@@ -48,7 +48,6 @@ GCC_REQ_VER(4.1.2)
 GLIBC_REQ_VER(2.14)
 PERL_REQ_VER(5.8.8)
 SAMTOOLS_REQ_VER(1.8)
-BEDTOOLS_REQ_VER(2.15.0)
 find_cpanm()
 
 message(STATUS "Your processor is ${CMAKE_SYSTEM_PROCESSOR} and you are running ${CMAKE_SYSTEM_NAME}. This means we'll download ${TRFDLName}")
@@ -98,10 +97,11 @@ install(CODE "
 SET(MISC_FILES
     README.md
     RUNNING.md
+    RESULTS.md
     HISTORY.md
     COPYING
     REFERENCE_FORMATS
-    reduced_db.sql
+    reduce_db.sql
     sqlite_schema.sql
     cpanfile
     cpanfile.snapshot

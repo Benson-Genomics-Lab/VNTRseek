@@ -19,7 +19,6 @@ This will run a sample of 700M human FASTA reads in roughly 30 hours.
 Latest versions preferred.
 
 - samtools
-- bedtools
 - Perl (>= 5.24.0)
   - DBI and DBD::SQLite modules
 - SQLite (>= 3.37.0)

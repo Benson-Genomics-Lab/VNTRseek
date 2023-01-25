@@ -86,24 +86,24 @@ sub _init_input_list {
 
     # List all supported file extensions and input formats here. Order of
     # input formats is in priority order: first format if found is used.
-    # For new formats, simply add the name of the format here and require
-    # that input file names have it as a prefix (eg, fasta files should
-    # have prefix "fasta_")
-    my @supported_format_names = qw(fasta fastq bam);
+    # For new formats, simply add the name of the format here and its extensions.
+    my @supported_format_names = qw(fasta fastq sam bam cram);
     my %supported_formats;
-    @supported_formats{@supported_format_names} = @supported_format_names;
+    @supported_formats{@supported_format_names} = (
+        qr/fa|fasta/, qr/fq|fastq/,
+        qr/sam/, qr/bam/, qr/cram/
+    );
+
 
     # Dispatch table to call appropriate function for each format.
     # Uses the list @supported_format_names above for hash keys. When
     # adding a new format, add the name first to @supported_format_names,
-    # and then add the reference to the reader function in the correct
+    # and then add the reference (\&) to the reader function in the correct
     # place in the values list.
     my %reader_table;
     @reader_table{@supported_format_names}
-        = ( \&read_fastaq, \&read_fastaq, \&read_bam );
+        = ( \&read_fastaq, \&read_fastaq, \&read_bam, \&read_bam, \&read_bam);
 
-    # TODO Simplify: we'll only support whatever seqtk supports and jusr
-    # let seqtk handle decompression for us.
     # Similarly for compression formats, add a new one to the list, then
     # add the regex and command needed to extract in the correct position
     # in the values list
@@ -126,9 +126,9 @@ sub _init_input_list {
         "xzcat "
     );
     while ( my $sf = shift @supported_format_names ) {
-        if (@filenames = sort
-            grep( /${supported_formats{$sf}}/ && -f "$_", @dircontents )
-            )
+        if ( @filenames = sort
+             grep ( /(?:${supported_formats{$sf}})(?:\.|$)/ && -f "$_", @dircontents )
+           )
         {
             $input_format = $sf;
 
@@ -154,9 +154,12 @@ sub _init_input_list {
         if ( @filenames == 0 );
 
     # If BAM, init files list
-    if ( $input_format eq "bam" ) {
+    if ($input_format eq "sam" or
+        $input_format eq "bam" or
+        $input_format eq "cram" ) {
+
         @filenames = $self->init_bam( files => \@filenames );
-        print "BAM input. Will need to process "
+        print "SAM/BAM/CRAM input. Will need to process "
             . scalar(@filenames)
             . " sets of reads from file.\n";
     }

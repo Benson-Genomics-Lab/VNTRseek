@@ -100,6 +100,7 @@ my %valid_stats = (
     TIME_VNTR_PREDICT                                   => 1,
     TIME_ASSEMBLYREQ                                    => 1,
     TIME_REPORTS                                        => 1,
+    TIME_DB_CONVERSION_AND_READ_COMPRESSION             => 1,
     DATE_MYSQLCREATE                                    => 1,
     DATE_TRF                                            => 1,
     DATE_RENUMB                                         => 1,
@@ -119,6 +120,7 @@ my %valid_stats = (
     DATE_VNTR_PREDICT                                   => 1,
     DATE_ASSEMBLYREQ                                    => 1,
     DATE_REPORTS                                        => 1,
+    DATE_DB_CONVERSION_AND_READ_COMPRESSION             => 1,
     ERROR_STEP                                          => 1,
     ERROR_DESC                                          => 1,
     ERROR_CODE                                          => 1,
@@ -496,7 +498,7 @@ sub get_dbh {
         ReadOnly => 1 * ( exists $opts->{readonly} && $opts->{readonly} )
     );
 
-    $dbh = DBI->connect( "DBI:SQLite:dbname=$dbfile", undef, undef, \%dbi_opts, )
+    $dbh = DBI->connect( "DBI:SQLite:dbname=$dbfile", undef, undef, \%dbi_opts )
         or die "Could not connect to database $dbfile: $DBI::errstr";
 
     my ($stats_schema) = $dbh->selectrow_array(
@@ -513,7 +515,7 @@ sub get_dbh {
     if ( $schema_ver < 1 ) {
         $dbh->disconnect();
         $dbh = DBI->connect( "DBI:SQLite:dbname=$dbfile", undef, undef,
-            { %dbi_opts, ReadOnly => 0, } )
+            { %dbi_opts, ReadOnly => 0 } )
             or die "Could not connect to database $dbfile: $DBI::errstr";
         $dbh->do(q{PRAGMA foreign_keys = off});
         $dbh->begin_work();
@@ -589,6 +591,7 @@ sub get_dbh {
   `TIME_VNTR_PREDICT` integer DEFAULT NULL,
   `TIME_ASSEMBLYREQ` integer DEFAULT NULL,
   `TIME_REPORTS` integer DEFAULT NULL,
+  `TIME_DB_CONVERSION_AND_READ_COMPRESSION` integer DEFAULT NULL,
   `DATE_MYSQLCREATE` text DEFAULT NULL,
   `DATE_TRF` text DEFAULT NULL,
   `DATE_RENUMB` text DEFAULT NULL,
@@ -608,6 +611,7 @@ sub get_dbh {
   `DATE_VNTR_PREDICT` text DEFAULT NULL,
   `DATE_ASSEMBLYREQ` text DEFAULT NULL,
   `DATE_REPORTS` text DEFAULT NULL,
+  `DATE_DB_CONVERSION_AND_READ_COMPRESSION` text DEFAULT NULL,
   `ERROR_STEP` integer NOT NULL DEFAULT '0',
   `ERROR_DESC` varchar(500) NOT NULL DEFAULT '',
   `ERROR_CODE` integer NOT NULL DEFAULT '0',
@@ -619,13 +623,13 @@ sub get_dbh {
         );
         $dbh->do(q{INSERT INTO stats SELECT * FROM _old_stats});
         $dbh->do(q{DROP TABLE _old_stats});
-        $dbh->commit;
+        $dbh->commit();
         $dbh->do(q{PRAGMA foreign_keys = on});
         $dbh->do(q{PRAGMA user_version = 1});
         $schema_ver = 1;
         $dbh->disconnect();
         $dbh = DBI->connect( "DBI:SQLite:dbname=$dbfile",
-            undef, undef, \%dbi_opts, )
+            undef, undef, \%dbi_opts )
             or die "Could not connect to database $dbfile: $DBI::errstr";
     }
 

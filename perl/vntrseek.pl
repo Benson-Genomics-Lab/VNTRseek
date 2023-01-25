@@ -37,12 +37,12 @@ use POSIX "strftime";
 use Getopt::Long "GetOptionsFromArray";
 use List::Util qw(min max);
 use DBI;
+use DBD::SQLite;
 use FindBin;
 use lib ( "$FindBin::RealBin/lib", "$FindBin::RealBin/local/lib/perl5" );
 use vutil
     qw(get_config validate_config print_config get_dbh get_ref_dbh
     set_statistics get_statistics set_datetime write_sqlite);
-use Timer;
 
 my $VERSION = '@VNTRVer@';
 my $install_dir = "$FindBin::RealBin"; # where the pipeline is installed
@@ -110,7 +110,7 @@ GetOptions(
     "NPROCESSES=i",
     "REDO_REFDB",   "REFERENCE_INDIST_PRODUCE=i",
     "CLEANUP",
-    "HELP", "STATS", "GEN_CONFIG"
+    "HELP", "STATS", "GEN_CONFIG:s"
 );
 
 # Print help string if that's all they ask
@@ -121,7 +121,10 @@ if ($opts{'GEN_CONFIG'}) {
     if (-d $opts{'GEN_CONFIG'}) { $opts{'GEN_CONFIG'} .= '/example.vs.cnf';}
     die "File $opts{'GEN_CONFIG'} already exists. Will not overwrite."
         if -e $opts{'GEN_CONFIG'};
-
+ 
+    if ($opts{'GEN_CONFIG'} == 1) {
+        $opts{'GEN_CONFIG'} = 'example.vs.cnf';
+    }
     system("cp $install_dir/defaults.vs.cnf $opts{'GEN_CONFIG'}");
     print "Generated example configuration file at $opts{'GEN_CONFIG'}.";
     exit;
@@ -354,10 +357,10 @@ if ( $STEP == 0 ) {
     Stamp('Start');
     $timestart = time();
 
-    {   no warnings 'once';
-        print "SQLite Version: $DBD::SQLite::sqlite_version";
-    }
     write_sqlite();
+    {   no warnings 'once';
+        print "SQLite Version: $DBD::SQLite::sqlite_version \n";
+    }
 
     FinishStep('MYSQLCREATE', {
         MAP_ROOT             => $install_dir,
@@ -369,7 +372,7 @@ if ( $STEP == 0 ) {
 
 if ( $STEP == 1 ) {
     print "Executing step #$STEP (searching for tandem repeats in reads,"
-             . " producing profiles and sorting)...\n";
+             . " producing profiles and sorting).\n";
     Stamp('Start');
     $timestart = time();
 
@@ -639,34 +642,21 @@ if ( $STEP == 13 ) {
 }
 
 if ( $STEP == 14 ) {
-    print "Executing step #$STEP (generating .index files for pcr_dup).\n";
-    Stamp('Start');
-    $timestart = time();
-
-    my $bestf = "$processedf/best";
-    die "Failed to create output directory $bestf.\n"
-        unless -r -w -e $bestf or mkdir $bestf;
-    unlink glob "$bestf/*.seq";
-
-    system("./extra_index.pl", $bestf, $config_file);
-    FlagError('generating .index files for pcr_dup');
-
-    FinishStep('INDEX_PCR');
-}
-
-if ( $STEP == 15 ) {
     print "Executing step #$STEP (calculating PCR duplicates).\n";
     Stamp('Start');
     $timestart = time();
 
     if ( $opts{KEEPPCRDUPS} ) {
-        print "Notice: Not removing detected PCR duplicates\n";
+        print "Notice: not deleting duplicates.\n";
     }
 
-    unlink glob "$processedf/best/*.seq.pcr_dup";
-    unlink "$output_folder/$opts{RUN_NAME}.pcr_dup.txt";
-    unlink "$output_folder/$opts{RUN_NAME}.ties.txt";
-    unlink "$output_folder/$opts{RUN_NAME}.ties_entries.txt";
+    my $bestf = "$processedf/best";
+    die "Failed to create output directory $bestf.\n"
+        unless -r -w -e $bestf or mkdir $bestf;
+    unlink glob "$bestf/*";
+    #unlink "$output_folder/$opts{RUN_NAME}.pcr_dup.txt";
+    #unlink "$output_folder/$opts{RUN_NAME}.ties.txt";
+    #unlink "$output_folder/$opts{RUN_NAME}.ties_entries.txt";
 
     system("./pcr_dup.pl",
         "$processedf/best",
@@ -677,8 +667,14 @@ if ( $STEP == 15 ) {
         $opts{'KEEPPCRDUPS'});
     FlagError('calculating PCR duplicates');
 
+    remove_tree("$processedf/best", {safe => 1});
+
     FinishStep('PCR_DUP');
 }
+
+# Step 15 merged into 14
+if ( $STEPEND == 15 )                { $STEP = 100; }
+elsif ( $STEP < 16 and $CONTINUOUS ) { $STEP = 16; }
 
 if ( $STEP == 16 ) {
     print "Executing step #$STEP (removing mapped duplicates).\n";
@@ -736,60 +732,36 @@ if ( $STEP == 20 ) {
     Stamp('Start');
     $timestart = time();
 
-    # Initial table simplification
-    my $dbfile = "$output_folder/$opts{RUN_NAME}.db";
-    my $dbfile2 = "$output_folder/$opts{RUN_NAME}_rl$opts{READ_LENGTH}.db";
-    print "Reducing database.\n";
-    system("sqlite3 $dbfile < reduced_db.sql");
-    FlagError("database reduction");
-    rename "temp_reduced.db", "$dbfile2";
-
-    # Header reduction for particular header form
-    my $dbh = DBI->connect("DBI:SQLite:dbname=$dbfile2");
-
-    my $full_header = qr/^(?P<renum>\w+\.\d+) \w+:\d+:\w+:\d+:\d+:\d+:\d+(?::[ACGTNacgtn]+\+[ACGTNacgtn]+)?\/(?P<read>\d)/;
-    my $all_match = 1;
-    my $sth = $dbh->prepare(qq{SELECT head FROM fasta_reads});
-    $sth->execute();
-    while ((my $head) = $sth->fetchrow_array()) {
-        if ($head !~ $full_header) {
-            $all_match = 0;
-            last;
-        }
-    }
-    $sth->finish();
-
-    if ($all_match) {
-        print "Shortening headers.\n";
-        $dbh->do("PRAGMA synchronous = OFF");
-        $dbh->do("UPDATE fasta_reads SET head = substr(head, 1, instr(head, \" \")-1) || \"/\" || substr(head, -1, 1)");
-    }
-    else { print "Cannot shorten headers.\n";}
-    $dbh->disconnect();
-
-    # Compress Reads
-    print "Compressing reads.\n";
-    system('./compress_reads.pl',
-        $dbfile2,
+    # Reduce Database
+    system('./reduce_db.pl',
+        $opts{'RUN_NAME'},
+        $output_folder,
         $opts{'REFERENCE'} . ".db",
+        $opts{'READ_LENGTH'},
         File::Temp->newdir(),
         $opts{'NPROCESSES'});
-
-    $dbh = DBI->connect("DBI:SQLite:dbname=$dbfile2");
-    $dbh->do("ANALYZE");
-    $dbh->do("VACUUM");
-    $dbh->disconnect();
+    FlagError('db conversion and compression');
 
     # Cleanup
     print "File Cleanup Time!\n";
-    remove_tree("$processedf/best", {safe => 1});
     remove_tree("$processedf/out", {safe => 1});
     if ($opts{'CLEANUP'}) {
         remove_tree($trff, {safe => 1});
         remove_tree($processedf, {safe => 1});
     }
 
-    #FinishStep('CLEANUP');
+    my $sn = 'DB_CONVERSION_AND_READ_COMPRESSION';
+    FinishStep($sn);
+
+    # Migrate final stats to reduced database
+    my $dbf  = "$output_folder/$opts{RUN_NAME}.db";
+    my $dbf2 = "$output_folder/$opts{RUN_NAME}_rl$opts{READ_LENGTH}.db";
+    my $dbh = DBI->connect("DBI:SQLite:dbname=$dbf");
+    $dbh->do(qq(ATTACH DATABASE "$dbf2" as newdb));
+    $dbh->do(q{
+    UPDATE newdb.stats
+    SET TIME_$sn = (select TIME_$sn from stats),
+        DATE_$sn = (select DATE_$sn from stats)});
 }
 
 print "Finished!\n";
