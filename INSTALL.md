@@ -45,18 +45,18 @@ cmake ..
 make install # or sudo make install, if needed
 ```
 
-By default, this will install the pipeline to `/usr/local/VNTRseek-N.N.N` (e.g.,
-`/usr/local/VNTRseek-2.0.3`) and create a symbolic link at `/usr/local/bin/vntrseek` 
-that points to the main program at `/usr/local/VNTRseek-N.N.N/vntrseek.pl`.
+By default, this will install the pipeline to `/usr/local/vntrseekN.N.N` (e.g.,
+`/usr/local/vntrseek2.0.3`) and create a symbolic link at `/usr/local/bin/vntrseek` 
+that points to the main program at `/usr/local/vntrseekN.N.N/vntrseek.pl`.
 
 If you would like to choose a different installation prefix,
 add the `-DCMAKE_INSTALL_PREFIX` option to the `cmake` call, e.g.:
 
 ```sh
-# use this for an absolute path to VNTRseek-N.N.N
+# use this for an absolute path to vntrseekN.N.N
 cmake -DCMAKE_INSTALL_PREFIX=<absolute_prefix> ..
 
-# use this to create a subdirectory under your home directory for VNTRseek-N.N.N
+# use this to create a subdirectory under your home directory for vntrseekN.N.N
 cmake -DCMAKE_INSTALL_PREFIX=${HOME} ..
 ```
 
