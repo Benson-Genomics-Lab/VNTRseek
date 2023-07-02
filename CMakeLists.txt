@@ -4,7 +4,7 @@ SET(PACKAGE_NAME VNTRseek)
 cmake_minimum_required(VERSION 3.2)
 # Set current VNTRseek version. Not user configurable
 SET(VNTRVer "2.0.3")
-project(VNTRseek VERSION 2.0.3 LANGUAGES C)
+project(VNTRseek VERSION ${VNTRVer} LANGUAGES C CXX)
 # project(VNTRseek VERSION ${VNTRVer} LANGUAGES C)
 
 SET(InstallSuffix "vntrseek${VNTRVer}")
@@ -44,9 +44,11 @@ ENDIF()
 SET(TRFDLName "trf${TRFVer}.${ARCH}")
 SET(GLIB2_LEGACY_VERSION "2.14")
 INCLUDE("FindDeps.cmake")
+FIND_ZLIB()
 GCC_REQ_VER(4.1.2)
 GLIBC_REQ_VER(2.14)
-PERL_REQ_VER(5.8.8)
+PERL_REQ_VER(5.24.0)
+SQLITE3_REQ_VER(3.37.0)
 SAMTOOLS_REQ_VER(1.8)
 find_cpanm()
 
@@ -111,14 +113,14 @@ install(FILES ${MISC_FILES}
     )
 
 # Download and install trf
-file(DOWNLOAD http://tandem.bu.edu/trf/downloads/${TRFDLName}
+file(DOWNLOAD https://github.com/Benson-Genomics-Lab/TRF/releases/latest/download/${TRFDLName}
     "${CMAKE_CURRENT_BINARY_DIR}/${TRFBin}"
     TIMEOUT 30
     STATUS TRFdlStat
     SHOW_PROGRESS)
 list(GET TRFdlStat 0 TRFdlErrNo)
 IF (TRFdlErrNo)
-    message(WARNING "Error encountered downloading TRF. Download it manually from: http://tandem.bu.edu/trf/trf.download.html")
+    message(WARNING "Error encountered downloading TRF. Download it manually from: https://github.com/Benson-Genomics-Lab/TRF/releases/latest.  Save it as ${CMAKE_CURRENT_BINARY_DIR}/${TRFBin}.")
 ELSE (TRFdlErrNo)
     install(PROGRAMS "${CMAKE_CURRENT_BINARY_DIR}/${TRFBin}" DESTINATION ${InstallSuffix})
 ENDIF (TRFdlErrNo)
