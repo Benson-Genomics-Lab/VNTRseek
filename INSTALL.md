@@ -49,7 +49,7 @@ make install # or sudo make install, if needed
 ```
 
 By default, this will install the pipeline to `/usr/local/vntrseekN.NN` (eg,
-`/usr/local/vntrseek2.0.0`).
+`/usr/local/vntrseek2.0.3`).
 
 If you would like to choose a different installation prefix,
 add the `-DCMAEK_INSTALL_PREFIX` option to the `cmake` call, e.g.:
