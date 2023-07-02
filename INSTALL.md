@@ -50,7 +50,7 @@ By default, this will install the pipeline to `/usr/local/vntrseekN.N.N` (e.g.,
 that points to the main program at `/usr/local/vntrseekN.N.N/vntrseek.pl`.
 
 If you would like to choose a different installation prefix,
-add the `-DCMAEK_INSTALL_PREFIX` option to the `cmake` call, e.g.:
+add the `-DCMAKE_INSTALL_PREFIX` option to the `cmake` call, e.g.:
 
 ```sh
 # use this for an absolute path to vntrseekN.N.N
