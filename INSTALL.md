@@ -34,7 +34,7 @@ below).
 
 # Installation
 
-To build and install to the default directory, download the `VNTRseek-N.NN.tar.gz` file fromm the latest release and run the following commands:
+To build and install to the default directory, download the `VNTRseek-N.NN.tar.gz` file from the latest release and run the following commands:
 
 ```sh
 tar xzvf VNTRseek-N.NN.tar.gz
