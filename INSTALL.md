@@ -18,22 +18,19 @@ This will run a sample of 700M human FASTA reads in roughly 30 hours.
 
 Latest versions preferred.
 
-- samtools
+- GCC (>= 4.1.2)
 - Perl (>= 5.24.0)
   - DBI and DBD::SQLite modules
 - SQLite (>= 3.37.0)
+- TRF (>= 4.09)
+- samtools (>= 1.8)
+- GLIBC (>= 2.14)
+- CMake (>= 3.2)
 
-TRF is also required, but is downloaded during installation. If the download fails,
-you can download it manually from
-[the website](http://tandem.bu.edu/trf/trf409.linux64.download.html)
+TRF is downloaded during installation. If the download fails, you can download it manually from
+[github](https://github.com/Benson-Genomics-Lab/TRF/releases/latest/download)
 and save it as `trf409-ngs.linux.exe` in the build directory (see [Installation](#installation)
 below).
-
-Building requires cmake (http://www.cmake.org/), minimum version 3.0
-
-Additionally you will need GCC version 4.1.2 on Mac/Linux/CYGWIN or
-a compatible compiler.
-
 
 # Installation
 
@@ -48,9 +45,9 @@ cmake ..
 make install # or sudo make install, if needed
 ```
 
-By default, this will install the pipeline to `/usr/local/vntrseekN.N.N` (eg,
+By default, this will install the pipeline to `/usr/local/vntrseekN.N.N` (e.g.,
 `/usr/local/vntrseek2.0.3`) and create a symbolic link at `/usr/local/bin/vntrseek` 
-that points to the main program at `usr/local/vntrseekN.N.N/vntrseek.pl`.
+that points to the main program at `/usr/local/vntrseekN.N.N/vntrseek.pl`.
 
 If you would like to choose a different installation prefix,
 add the `-DCMAEK_INSTALL_PREFIX` option to the `cmake` call, e.g.:
