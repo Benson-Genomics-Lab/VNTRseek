@@ -38,7 +38,7 @@ To build and install to the default directory, download the `VNTRseek-N.NN.tar.g
 
 ```sh
 tar xzvf VNTRseek-N.NN.tar.gz
-cd VNTRseek-N.NNsrc
+cd VNTRseek-N.NN
 mkdir build
 cd build
 cmake ..
